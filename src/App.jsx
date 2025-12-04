@@ -54,6 +54,21 @@ const COMPANIES = [
 
 const THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
+const LoadingOverlay = ({ message = "กำลังประมวลผล..." }) => (
+  <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center backdrop-blur-sm animate-fade-in">
+     <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center border border-gray-100 transform scale-110 transition-all">
+         <div className="relative">
+             <div className="w-16 h-16 border-4 border-gray-200 border-t-primary-navy rounded-full animate-spin"></div>
+             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <img src="/CMT-HRM-ContractSystem/division.png" className="w-8 h-8 opacity-50" /> 
+             </div>
+         </div>
+         <p className="text-primary-navy font-bold mt-6 text-lg tracking-wide">{message}</p>
+         <p className="text-gray-400 text-xs mt-1">กรุณารอสักครู่...</p>
+     </div>
+  </div>
+);
+
 // --- Helper Functions ---
 const bahtText = (num) => {
     if (!num) return "";
@@ -303,6 +318,7 @@ const SettingsPage = ({ onBack }) => {
 
 // --- Main App ---
 export default function App() {
+  const [globalLoading, setGlobalLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [view, setView] = useState('loading'); 
   const [activeDocId, setActiveDocId] = useState(null);
@@ -347,7 +363,7 @@ export default function App() {
       <Navbar user={user} onLogout={() => { localStorage.removeItem('cmt_user'); setUser(null); setView('login'); }} onSettings={() => setView('settings')} />
       
       <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
-        {view === 'loading' && <div className="text-center pt-20">Loading...</div>}
+        {view === 'loading' && <LoadingOverlay message="กำลังเชื่อมต่อฐานข้อมูล..." />}
         {view === 'login' && <LoginView onLogin={handleLogin} />}
         {view === 'dashboard' && (
           <Dashboard 
@@ -356,14 +372,17 @@ export default function App() {
             onManageEmployees={() => setView('employees')}
             onRefresh={loadContracts}
             onDelete={async (id) => { 
-                if(confirm("ลบ?")) { 
+                if(confirm("ยืนยันการลบสัญญา?")) { 
+                    setGlobalLoading(true); // <--- เริ่มโหลดเต็มจอ
                     await fetch(API_URL, { 
                         method: 'POST', 
                         body: JSON.stringify({ action: 'deleteContract', id: id }) 
                     }); 
-                    loadContracts(); 
+                    await loadContracts(); // โหลดข้อมูลใหม่
+                    setGlobalLoading(false); // <--- หยุดโหลด
                 }
             }}
+            
             onOpenSign={(id) => { setActiveDocId(id); setView('sign'); }}
           />
         )}
@@ -372,6 +391,9 @@ export default function App() {
         {view === 'settings' && <SettingsPage onBack={() => setView('dashboard')} />}
         {view === 'sign' && <SignPage docId={activeDocId} onBack={() => { window.history.pushState({}, '', '/'); setView(user ? 'dashboard' : 'login'); }} isAdmin={!!user} />}
       </div>
+
+    {globalLoading && <LoadingOverlay message="กำลังลบข้อมูล..." />}
+
     </div>
   );
 }
@@ -961,6 +983,7 @@ const EmployeeManager = ({ onBack }) => {
 
 // --- CREATE FORM ---
 const CreateContract = ({ onCancel, onSuccess }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
     empId: '', name: '', surname: '', position: '', salary: '20000', 
     department: '', sub_dept: '', project: '', contractType: 'contract_page_1', company: COMPANIES[0], workSet: 'D',
@@ -1105,10 +1128,15 @@ const CreateContract = ({ onCancel, onSuccess }) => {
     };
 
     try {
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
-      alert("สร้างสำเร็จ!"); onSuccess();
-    } catch (err) { alert("Error connecting to server"); }
-  };
+      await fetch(API_URL, { 
+        method: 'POST', 
+        body: JSON.stringify(payload) 
+      });
+      onSuccess();
+    } catch (err) { 
+    alert("Error connecting to server"); 
+    setIsSubmitting(false); // <--- ถ้าพัง ให้หยุดหมุน
+    }
 
   const filteredEmp = employees.filter(e => (e.name+e.surname).toLowerCase().includes(search.toLowerCase()));
 
@@ -1228,6 +1256,9 @@ const CreateContract = ({ onCancel, onSuccess }) => {
            <button type="button" onClick={onCancel} className="px-8 py-3 border border-gray-300 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-all">ยกเลิก</button>
            <button type="submit" className="px-8 py-3 bg-primary-navy text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2"><Save size={18}/> บันทึกและส่งเมล</button>
         </div>
+
+        {isSubmitting && <LoadingOverlay message="กำลังสร้างสัญญาและส่งอีเมล..." />}
+
       </form>
     </div>
   );
@@ -1242,6 +1273,7 @@ const Input = ({ label, name, val, onChange, type="text", required=false, placeh
 
 // --- SIGNING PAGE ---
 const SignPage = ({ docId, onBack, isAdmin }) => {
+  const [isSaving, setIsSaving] = useState(false);
   const [contract, setContract] = useState(null);
   const [signing, setSigning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -1289,6 +1321,7 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
   };
 
   const saveSignature = async () => {
+    setIsSaving(true);
     const dataUrl = sigRef.current.toDataURL();
     const step = contract.current_step;
     const jsonKey = step === 1 ? "Sig4" : step === 2 ? "Sig3" : step === 3 ? "Sig1" : "Sig2";
@@ -1308,10 +1341,11 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
         data: newData
     };
 
-    await fetch(API_URL, {
-    method: 'POST', 
-    body: JSON.stringify(payload)
-    });
+    try {
+      await fetch(API_URL, {
+         method: 'POST', 
+         body: JSON.stringify(payload)
+      });
     
     const storageKey = `cmt_signed_steps_${contract.id}`;
     const signedSteps = JSON.parse(localStorage.getItem(storageKey) || '[]');
@@ -1323,7 +1357,12 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
     setAlreadySignedStep(true);
     setSigning(false); 
     setIsComplete(true); 
-  };
+    } catch(e) {
+      alert("เกิดข้อผิดพลาดในการบันทึก");
+    } finally {
+      setIsSaving(false); // <--- หยุดโหลด
+    }
+}; 
 
   if (isComplete) {
       return (
