@@ -381,7 +381,7 @@ const Navbar = ({ onLogout, onSettings, user }) => (
     <div className="w-full px-6 md:px-10 flex justify-between items-center h-16">
         <div className="flex items-center gap-3">
             <div className="bg-white/10 p-2 rounded-lg hover:bg-white/20 transition-colors cursor-pointer flex items-center justify-center">
-                <img src="division.png" alt="Logo" className="w-6 h-6 object-contain" />
+               <img src="/CMT-HRM-ContractSystem/division.png" alt="Logo" className="w-6 h-6 object-contain" />
             </div>
             <div>
                 <h1 className="font-bold text-xl leading-tight tracking-tight text-[#ffde91]">Contract System</h1>
@@ -416,7 +416,7 @@ const LoginView = ({ onLogin }) => {
   return (
     <div className="flex justify-center pt-20">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border text-center">
-        <img src="division.png" alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
+        <img src="/CMT-HRM-ContractSystem/division.png" alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
         <h2 className="text-2xl font-bold text-primary-navy mb-6">เข้าสู่ระบบ</h2>
         <input className="w-full p-3 border rounded-xl mb-4" value={u} onChange={e=>setU(e.target.value)} placeholder="Username (CMT)" />
         <input type="password" className="w-full p-3 border rounded-xl mb-6" value={p} onChange={e=>setP(e.target.value)} placeholder="Password (CMT)" />
@@ -1457,6 +1457,7 @@ const SignatureCanvas = React.forwardRef((props, ref) => {
 // CONTRACT DOCUMENT TEMPLATE
 // ============================================================================
 const ContractDocument = ({ data, type, company, isEditable, onMapUpdate }) => {
+    if (!data) return <div className="p-10 text-center text-red-500">Error: ไม่พบข้อมูลสัญญา (Data Corrupted)</div>;
     const fields = data.Fields || {};
     const sigs = data.SignatureImages || {};
     const sigNames = data.SignatureNames || {};
