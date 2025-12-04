@@ -1098,7 +1098,7 @@ const CreateContract = ({ onCancel, onSuccess }) => {
       action: 'createContract',
       contract_type: form.contractType, company_name: form.company, status: 'Pending Signer 1', current_step: 1, data: contractData,
       signer1_name: form.signer1_name, signer1_email: form.signer1_email,
-      signer2_name: `${form.name} ${form.surname}`, signer2_email: "burin.wo@gmail.com", // In real app, might want to ask for user email
+      signer2_name: `${form.name} ${form.surname}`, signer2_email: "carpetmaker05@gmail.com", // In real app, might want to ask for user email
       signer3_name: form.witness1_name, signer3_email: form.witness1_email,
       signer4_name: form.witness2_name, signer4_email: form.witness2_email,
       sig1: null, sig2: null, sig3: null, sig4: null
