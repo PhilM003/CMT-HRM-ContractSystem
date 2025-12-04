@@ -1931,4 +1931,5 @@ const ContractDocument = ({ data, type, company, isEditable, onMapUpdate }) => {
             {(type === 'contract_page_1' || type === 'probation_contract_page') && <PageAddress />}
         </div>
     );
-};
+  };
+}
