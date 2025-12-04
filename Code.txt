@@ -1,8 +1,8 @@
 // --- CONFIGURATION ---
-const SHEET_ID = '13ko9sbzz9_RlBqvb02g-A6_Tc3sMq1YP7-CjlhGKB9E'; // ID ของคุณ
+const SHEET_ID = '1aNMQ62EgVdXQOJf1QldQsO48d4LZbIC2fpo-sElCmTQ'; // ID ของคุณ
 // *** เปลี่ยนตรงนี้เป็น URL ของหน้าเว็บ Frontend ของคุณ (GitHub Pages) ***
 // ถ้ายัง Test ในเครื่อง ให้ใส่ http://localhost:5173 หรือ http://localhost:5500
-const FRONTEND_URL = 'http://localhost:5173'; 
+const FRONTEND_URL = 'https://PhilM003.github.io/CMT-HRM-ContractSystem'; 
 
 // --- MENU TOOLBAR (ตามที่ขอ) ---
 function onOpen() {
