@@ -8,7 +8,10 @@ import logoImage from './assets/division.png';
 
 // --- CONFIG ---
 const API_URL = 'https://script.google.com/macros/s/AKfycbx3eQl0nfPMqCAXobB9x6BKNQZlJE4GCfFiV9FZ_cPCgu5OYDqF1HucHGLs2kmOg2Tl/exec'; 
+<<<<<<< HEAD
 
+=======
+>>>>>>> cd0f543 (Edit URL)
 // --- Constants ---
 const CONTRACT_TYPES = {
   contract_page_1: "สัญญาจ้างงาน",
