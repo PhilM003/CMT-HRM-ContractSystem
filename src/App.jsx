@@ -4,6 +4,7 @@ import {
   PenTool, CheckCircle, Save, Printer, ArrowLeft, Mail, 
   MapPin, Trash2, Eye, RotateCw, X, Table, DownloadCloud, Settings, CheckSquare, ChevronRight, UserCheck, Map as MapIcon, Sliders
 } from 'lucide-react';
+import logoImage from './assets/division.png';
 
 // --- CONFIG ---
 const API_URL = 'https://script.google.com/macros/s/AKfycbzQeVoxDxOIYJQtnMv97EhSd11PZ2rY5bOCEKIPczZwpgayTsj_RX98d5XUHBqEufwp/exec'; 
@@ -381,7 +382,7 @@ const Navbar = ({ onLogout, onSettings, user }) => (
     <div className="w-full px-6 md:px-10 flex justify-between items-center h-16">
         <div className="flex items-center gap-3">
             <div className="bg-white/10 p-2 rounded-lg hover:bg-white/20 transition-colors cursor-pointer flex items-center justify-center">
-               <img src="/CMT-HRM-ContractSystem/division.png" alt="Logo" className="w-6 h-6 object-contain" />
+               <img src={logoImage} alt="Logo" className="w-6 h-6 object-contain" />
             </div>
             <div>
                 <h1 className="font-bold text-xl leading-tight tracking-tight text-[#ffde91]">Contract System</h1>
@@ -416,7 +417,7 @@ const LoginView = ({ onLogin }) => {
   return (
     <div className="flex justify-center pt-20">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border text-center">
-        <img src="/CMT-HRM-ContractSystem/division.png" alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
+        <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
         <h2 className="text-2xl font-bold text-primary-navy mb-6">เข้าสู่ระบบ</h2>
         <input className="w-full p-3 border rounded-xl mb-4" value={u} onChange={e=>setU(e.target.value)} placeholder="Username (CMT)" />
         <input type="password" className="w-full p-3 border rounded-xl mb-6" value={p} onChange={e=>setP(e.target.value)} placeholder="Password (CMT)" />
