@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, FileText, Plus, Users, LogOut, Search, 
   PenTool, CheckCircle, Save, Printer, ArrowLeft, Mail, 
-  MapPin, Trash2, Eye, RotateCw, X, Table, DownloadCloud, Settings, CheckSquare, ChevronRight, UserCheck, Map as MapIcon, Sliders
+  MapPin, Trash2, Eye, RotateCw, X, Table, DownloadCloud, Settings, CheckSquare, ChevronRight, UserCheck, Map as MapIcon, Sliders, Loader2
 } from 'lucide-react';
 import logoImage from './assets/division.png';
 
 // --- CONFIG ---
+// *** ใส่ลิงก์ GAS ของคุณที่นี่ ***
 const API_URL = 'https://script.google.com/macros/s/AKfycbwAL1ISDOIC_0TVh4RZniHn34vP0O7x5yBHlyxGZ1-u8ctgEg9OtG9dNMAZwxH7sNww/exec'; 
 
 // --- Constants ---
@@ -54,13 +55,15 @@ const COMPANIES = [
 
 const THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
+// --- COMPONENTS ---
+
 const LoadingOverlay = ({ message = "กำลังประมวลผล..." }) => (
   <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center backdrop-blur-sm animate-fade-in">
      <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center border border-gray-100 transform scale-110 transition-all">
          <div className="relative">
              <div className="w-16 h-16 border-4 border-gray-200 border-t-primary-navy rounded-full animate-spin"></div>
              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
+                <img src={logoImage} alt="Loading" className="mx-auto mb-4 h-20 w-auto" />
              </div>
          </div>
          <p className="text-primary-navy font-bold mt-6 text-lg tracking-wide">{message}</p>
@@ -266,15 +269,20 @@ const StepTracker = ({ currentStep, status }) => {
 };
 
 // --- Settings Page Component ---
-    useEffect(() => {
-        fetch(`${API_URL}?action=getSettings`) // <--- แก้เป็น query param
-            .then(r => r.json())
-            .then(setConfig)
-            .catch(e => console.log("Default settings not found"));
-    }, []);
+const SettingsPage = ({ onBack }) => {
+    const [config, setConfig] = useState({
+        signer1_name: "", signer1_email: "",
+        signer3_name: "", signer3_email: "",
+        signer4_name: "", signer4_email: ""
+    });
 
     useEffect(() => {
-        fetch(`${API_URL}?action=getSettings`).then(r => r.json()).then(setConfig).catch(e => console.log("Default settings not found, using empty"));
+        fetch(`${API_URL}?action=getSettings`)
+            .then(r => r.json())
+            .then(data => {
+               if(data && !data.error) setConfig(data);
+            })
+            .catch(e => console.log("Default settings not found"));
     }, []);
 
     const handleSave = async () => {
@@ -282,8 +290,9 @@ const StepTracker = ({ currentStep, status }) => {
             await fetch(API_URL, {
                 method: 'POST',
                 body: JSON.stringify({
-                    action: 'saveSettings', // <--- ระบุ action
-                    config: config          // ส่ง config ไป
+                    system: 'contract',
+                    action: 'saveSettings',
+                    config: config 
                 })
             });
             alert("บันทึกการตั้งค่าเรียบร้อย");
@@ -299,8 +308,6 @@ const StepTracker = ({ currentStep, status }) => {
             </div>
             <div className="bg-white p-8 rounded-2xl shadow-lg max-w-2xl border border-gray-200">
                 <h3 className="font-bold text-lg mb-6 flex items-center gap-2"><Mail size={20}/> กำหนดอีเมลผู้รับรองเริ่มต้น</h3>
-                <p className="text-gray-500 text-sm mb-6">ค่าเหล่านี้จะถูกนำไปใส่ให้อัตโนมัติเมื่อสร้างสัญญาฉบับใหม่</p>
-                
                 <div className="space-y-6">
                     <div className="p-4 bg-gray-50 rounded-xl border">
                         <h4 className="font-bold text-gray-700 mb-2">ผู้บริหาร / HR Manager (Step 3)</h4>
@@ -332,7 +339,496 @@ const StepTracker = ({ currentStep, status }) => {
             </div>
         </div>
     );
-    
+};
+
+// --- CREATE FORM ---
+const CreateContract = ({ onCancel, onSuccess }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    empId: '', name: '', surname: '', position: '', salary: '20000', 
+    department: '', sub_dept: '', project: '', contractType: 'contract_page_1', company: COMPANIES[0], workSet: 'D',
+    witness1_name: 'พยานคนที่ 1', witness1_email: '', witness2_name: 'พยานคนที่ 2', witness2_email: '',
+    signer1_name: 'ดร.กฤษณา สุขบุญญสถิตย์', signer1_email: '', 
+    startDate: '', probationDate: '', comment: '',
+    age: '', personalId: '', issueDate: '', addressFull: '',
+    houseNo: '', moo: '', soi: '', road: '', subdistrict: '', district: '', province: '',
+    phoneHome: '', phoneMobile: '', nearHome: '',
+    contactName: '', contactSurname: '', contactPhone: '', contactRel: ''
+  });
+  
+  const [employees, setEmployees] = useState([]);
+  const [search, setSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => { 
+    // Load Employees
+    fetch(`${API_URL}?action=getEmployees`)
+        .then(r => r.json())
+        .then(data => {
+            if (Array.isArray(data)) setEmployees(data);
+        })
+        .catch(e => console.error("Error loading employees:", e));
+
+    // Load Settings
+    fetch(`${API_URL}?action=getSettings`)
+            .then(r => r.json())
+            .then(settings => {
+                if(settings && !settings.error) {
+                    setForm(prev => ({
+                        ...prev,
+                        signer1_name: settings.signer1_name || prev.signer1_name,
+                        signer1_email: settings.signer1_email || prev.signer1_email,
+                        witness1_name: settings.signer3_name || prev.witness1_name, 
+                        witness1_email: settings.signer3_email || prev.witness1_email,
+                        witness2_name: settings.signer4_name || prev.witness2_name,
+                        witness2_email: settings.signer4_email || prev.witness2_email
+                    }));
+                }
+            })
+            .catch(e => console.error("Error loading settings:", e));
+    }, []);
+
+  const handleSearch = (e) => {
+      setSearch(e.target.value);
+      setForm({...form, name: e.target.value});
+      setShowDropdown(true);
+  };
+
+  const selectEmp = (emp) => {
+      const isoStart = convertToInputDate(emp.startDate); 
+      const isoProbation = convertToInputDate(emp.probationDate);
+      
+      setForm(prev => ({
+          ...prev,
+          empId: emp.empId || "", 
+          name: emp.name || "", 
+          surname: emp.surname || "", 
+          position: emp.position || "", 
+          department: emp.department || "", 
+          sub_dept: emp.sub_dept || "", 
+          project: emp.project || "",
+          salary: prev.salary, 
+          age: emp.age || "",
+          personalId: emp.personalId || "",
+          issueDate: emp.issueDate || "",
+          addressFull: emp.addressFull || "",
+          houseNo: emp.houseNo || "",
+          moo: emp.moo || "",
+          soi: emp.soi || "",
+          road: emp.road || "",
+          subdistrict: emp.subdistrict || "",
+          district: emp.district || "",
+          province: emp.province || "",
+          phoneHome: emp.phoneHome || "",
+          phoneMobile: emp.phoneMobile || "",
+          nearHome: emp.nearHome || "",
+          contactName: emp.contactName || "",
+          contactSurname: emp.contactSurname || "",
+          contactPhone: emp.contactPhone || "",
+          contactRel: emp.contactRel || "",
+          startDate: isoStart, 
+          probationDate: isoProbation
+      }));
+      setSearch(emp.name);
+      setShowDropdown(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const now = new Date();
+    const thaiYear = now.getFullYear() + 543;
+    const dateStr = `${now.getDate()}/${now.getMonth()+1}/${thaiYear}`;
+    const startObj = parseDateToThaiObj(form.startDate);
+    const probObj = parseDateToThaiObj(form.probationDate);
+
+    const companyPrefixes = {
+        "บริษัท คาร์เปท เมกเกอร์ (ประเทศไทย) จำกัด": "CMT",
+        "บริษัท คาร์เปท เมกเกอร์ พี2ดับบลิว (ประเทศไทย) จำกัด": "P2W",
+        "บริษัท ไอเค รีเสิร์จ จำกัด": "IKR",
+        "บริษัท อินเตอร์ ไกร จำกัด": "IKK"
+    };
+    const prefix = companyPrefixes[form.company] || "CMT";
+
+    const contractData = {
+      Fields: {
+        empId: form.empId, 
+        "DD/MM/YYYY": dateStr, 
+        Name: form.name, 
+        Surname: form.surname, 
+        Position: form.position,
+        Salary: parseInt(form.salary).toLocaleString(), 
+        Thai_salary: bahtText(form.salary),
+        Department: form.department, 
+        Subdepartment: form.sub_dept, 
+        project: form.project,
+        Address: form.addressFull, 
+        Age: form.age, 
+        PersonalID: form.personalId, 
+        PersonalID_validdate: form.issueDate,
+        ContractNO: `${prefix}/${form.empId}`,
+        Day_st: startObj.d || now.getDate(), Month_st: startObj.m || THAI_MONTHS[now.getMonth()], Year_st: startObj.y || (now.getFullYear()+543),
+        Day_en: probObj.d || "", Month_en: probObj.m || "", Year_en: probObj.y || "",
+        Comment: form.comment,
+        House_id: form.houseNo, Moo: form.moo, Street: form.soi, Road: form.road,
+        Subdistrict: form.subdistrict, District: form.district, Province: form.province,
+        Hounse_phone_number: form.phoneHome, Mobile_phone_number: form.phoneMobile,
+        Place_near_home: form.nearHome,
+        Person_contact_name: form.contactName, Person_contact_surname: form.contactSurname,
+        Person_contact_phone: form.contactPhone, Person_contact_relationship: form.contactRel
+      },
+      SelectedWorkSet: form.workSet,
+      SignatureNames: { Name1: form.signer1_name, Name2: `${form.name} ${form.surname}`, Name3: form.witness1_name, Name4: form.witness2_name },
+      SignatureImages: {}
+    };
+
+    const payload = {
+      system: 'contract',
+      action: 'createContract',
+      contract_type: form.contractType, company_name: form.company, status: 'Pending Signer 1', current_step: 1, data: contractData,
+      signer1_name: form.signer1_name, signer1_email: form.signer1_email,
+      signer2_name: `${form.name} ${form.surname}`, signer2_email: "carpetmaker05@gmail.com", 
+      signer3_name: form.witness1_name, signer3_email: form.witness1_email,
+      signer4_name: form.witness2_name, signer4_email: form.witness2_email,
+      sig1: null, sig2: null, sig3: null, sig4: null
+    };
+
+    try {
+      await fetch(API_URL, { 
+        method: 'POST', 
+        body: JSON.stringify(payload) 
+      });
+      onSuccess();
+    } catch (err) { 
+        alert("Error connecting to server"); 
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const filteredEmp = employees.filter(e => {
+      const fullName = (e.name || "") + (e.surname || "");
+      return fullName.toLowerCase().includes(search.toLowerCase());
+  });
+
+  return (
+    <div className="max-w-5xl mx-auto bg-white p-8 rounded-3xl shadow-2xl border border-secondary-silver/30 animate-fade-in-up">
+      <div className="flex justify-between items-center mb-8 border-b border-gray-100 pb-6">
+        <div>
+            <h2 className="text-3xl font-extrabold text-primary-navy flex items-center gap-3">
+                <div className="bg-primary-navy p-2 rounded-xl text-white"><FileText size={24}/></div>
+                สร้างสัญญาใหม่
+            </h2>
+            <p className="text-gray-500 mt-1 ml-14">กรอกข้อมูลเพื่อสร้างเอกสารสัญญา</p>
+        </div>
+        <button onClick={onCancel} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={24} className="text-gray-400"/></button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100">
+            <h3 className="font-bold text-lg text-primary-navy mb-4 flex items-center gap-2"><Settings size={18}/> ข้อมูลทั่วไป</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">บริษัท</label><select name="company" value={form.company} onChange={e=>setForm({...form, company: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-primary-gold outline-none transition-all">{COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">ประเภทสัญญา</label><select name="contractType" value={form.contractType} onChange={e=>setForm({...form, contractType: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-primary-gold outline-none transition-all">{Object.entries(CONTRACT_TYPES).map(([k,v])=><option value={k} key={k}>{v}</option>)}</select></div>
+            </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+            <h3 className="font-bold text-lg text-primary-navy mb-4 flex items-center gap-2"><Users size={18}/> ข้อมูลพนักงาน (Employee)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="relative col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">ค้นหาชื่อพนักงาน</label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-3.5 text-gray-400" size={18}/>
+                        <input value={search} onChange={handleSearch} onFocus={()=>setShowDropdown(true)} onBlur={()=>setTimeout(()=>setShowDropdown(false),200)} className="w-full pl-10 p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-gold outline-none" required placeholder="พิมพ์ชื่อเพื่อค้นหา..." />
+                    </div>
+                    {showDropdown && filteredEmp.length > 0 && (
+                        <div className="absolute z-10 w-full bg-white border shadow-xl max-h-60 overflow-auto rounded-xl mt-2 p-2">
+                            {filteredEmp.map(e => <div key={e.empId} onClick={()=>selectEmp(e)} className="p-3 hover:bg-blue-50 cursor-pointer text-sm rounded-lg flex justify-between items-center group"><span className="font-bold text-gray-700">{e.name} {e.surname}</span> <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded group-hover:bg-white">{e.position}</span></div>)}
+                        </div>
+                    )}
+                </div>
+                <Input label="ชื่อ" name="name" val={form.name} onChange={e=>setForm({...form, name:e.target.value})} required />
+                <Input label="นามสกุล" name="surname" val={form.surname} onChange={e=>setForm({...form, surname:e.target.value})} required />
+                <Input label="รหัสพนักงาน" name="empId" val={form.empId} onChange={e=>setForm({...form, empId:e.target.value})} required />
+                <Input label="ตำแหน่ง" name="position" val={form.position} onChange={e=>setForm({...form, position:e.target.value})} required />
+                <Input label="แผนก" name="department" val={form.department} onChange={e=>setForm({...form, department:e.target.value})} />
+                <Input label="ฝ่าย (Sub-dept)" name="sub_dept" val={form.sub_dept} onChange={e=>setForm({...form, sub_dept:e.target.value})} />
+                <Input label="เงินเดือน (บาท)" name="salary" type="number" val={form.salary} onChange={e=>setForm({...form, salary:e.target.value})} required />
+                <Input label="หมายเหตุ (Comment)" name="comment" val={form.comment} onChange={e=>setForm({...form, comment:e.target.value})} placeholder="ระบุเงื่อนไขเพิ่มเติม (ถ้ามี)" />
+                <h4 className="col-span-2 font-bold text-gray-600 border-b pb-2 mt-4">ข้อมูลส่วนตัวและที่อยู่</h4>
+                <Input label="อายุ (ปี)" name="age" val={form.age} onChange={e=>setForm({...form, age:e.target.value})} />
+                <Input label="เลขบัตรประชาชน" name="personalId" val={form.personalId} onChange={e=>setForm({...form, personalId:e.target.value})} />
+                <Input label="วันที่ออกบัตร" name="issueDate" val={form.issueDate} onChange={e=>setForm({...form, issueDate:e.target.value})} />
+                <div className="col-span-2"><Input label="ที่อยู่ตามทะเบียนบ้าน (เต็ม)" name="addressFull" val={form.addressFull} onChange={e=>setForm({...form, addressFull:e.target.value})} /></div>
+                <div className="col-span-2 grid grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl">
+                   <Input label="บ้านเลขที่" name="houseNo" val={form.houseNo} onChange={e=>setForm({...form, houseNo:e.target.value})} />
+                   <Input label="หมู่ที่" name="moo" val={form.moo} onChange={e=>setForm({...form, moo:e.target.value})} />
+                   <Input label="ตรอก/ซอย" name="soi" val={form.soi} onChange={e=>setForm({...form, soi:e.target.value})} />
+                   <Input label="ถนน" name="road" val={form.road} onChange={e=>setForm({...form, road:e.target.value})} />
+                   <Input label="ตำบล/แขวง" name="subdistrict" val={form.subdistrict} onChange={e=>setForm({...form, subdistrict:e.target.value})} />
+                   <Input label="อำเภอ/เขต" name="district" val={form.district} onChange={e=>setForm({...form, district:e.target.value})} />
+                   <Input label="จังหวัด" name="province" val={form.province} onChange={e=>setForm({...form, province:e.target.value})} />
+                </div>
+                <Input label="เบอร์โทรบ้าน" name="phoneHome" val={form.phoneHome} onChange={e=>setForm({...form, phoneHome:e.target.value})} />
+                <Input label="เบอร์มือถือ" name="phoneMobile" val={form.phoneMobile} onChange={e=>setForm({...form, phoneMobile:e.target.value})} />
+                <div className="col-span-2"><Input label="สถานที่ใกล้เคียง" name="nearHome" val={form.nearHome} onChange={e=>setForm({...form, nearHome:e.target.value})} /></div>
+                <h4 className="col-span-2 font-bold text-gray-600 border-b pb-2 mt-4">บุคคลติดต่อฉุกเฉิน</h4>
+                <Input label="ชื่อผู้ติดต่อ" name="contactName" val={form.contactName} onChange={e=>setForm({...form, contactName:e.target.value})} />
+                <Input label="นามสกุล" name="contactSurname" val={form.contactSurname} onChange={e=>setForm({...form, contactSurname:e.target.value})} />
+                <Input label="เบอร์ผู้ติดต่อ" name="contactPhone" val={form.contactPhone} onChange={e=>setForm({...form, contactPhone:e.target.value})} />
+                <Input label="ความสัมพันธ์" name="contactRel" val={form.contactRel} onChange={e=>setForm({...form, contactRel:e.target.value})} />
+                <div className={`col-span-2 grid gap-4 bg-yellow-50/50 p-4 rounded-xl border border-yellow-100 mt-4 ${form.contractType === 'probation_contract_page' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    <Input label="วันเริ่มงาน (วว/ดด/ปปปป)" name="startDate" type="text" placeholder="วว/ดด/ปปปป" val={form.startDate} onChange={e=>setForm({...form, startDate:e.target.value})} />
+                    {form.contractType === 'probation_contract_page' && (
+                        <Input label="วันครบกำหนดทดลองงาน (วว/ดด/ปปปป)" name="probationDate" type="text" placeholder="วว/ดด/ปปปป" val={form.probationDate} onChange={e=>setForm({...form, probationDate:e.target.value})} />
+                    )}
+                    <div className="col-span-2">
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">กะเวลาทำงาน</label>
+                        <select name="workSet" value={form.workSet} onChange={e=>setForm({...form, workSet:e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-primary-gold outline-none">
+                            {Object.entries(WORK_SET_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+            <h3 className="font-bold text-lg text-primary-navy mb-4 flex items-center gap-2"><PenTool size={18}/> กำหนดผู้รับรอง (Signers)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input label="พยาน 2 (Step 1)" name="witness2_name" val={form.witness2_name} onChange={e=>setForm({...form, witness2_name:e.target.value})} />
+                <Input label="Email พยาน 2" name="witness2_email" val={form.witness2_email} onChange={e=>setForm({...form, witness2_email:e.target.value})} />
+                <Input label="พยาน 1 (Step 2)" name="witness1_name" val={form.witness1_name} onChange={e=>setForm({...form, witness1_name:e.target.value})} />
+                <Input label="Email พยาน 1" name="witness1_email" val={form.witness1_email} onChange={e=>setForm({...form, witness1_email:e.target.value})} />
+                <Input label="ผู้บริหาร (Step 3)" name="signer1_name" val={form.signer1_name} onChange={e=>setForm({...form, signer1_name:e.target.value})} />
+                <Input label="Email ผู้บริหาร" name="signer1_email" val={form.signer1_email} onChange={e=>setForm({...form, signer1_email:e.target.value})} />
+            </div>
+        </div>
+
+        <div className="flex justify-end gap-4 pt-4 border-t border-gray-100">
+           <button type="button" onClick={onCancel} className="px-8 py-3 border border-gray-300 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-all">ยกเลิก</button>
+           <button type="submit" className="px-8 py-3 bg-primary-navy text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                {isSubmitting ? <Loader2 className="animate-spin" /> : <Save size={18}/>} 
+                {isSubmitting ? " กำลังบันทึก..." : " บันทึกและส่งเมล"}
+           </button>
+        </div>
+        {isSubmitting && <LoadingOverlay message="กำลังสร้างสัญญาและส่งอีเมล..." />}
+      </form>
+    </div>
+  );
+};
+
+// --- EmployeeManager ---
+const EmployeeManager = ({ onBack }) => {
+    const [employees, setEmployees] = useState([]);
+    const [search, setSearch] = useState("");
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [showImport, setShowImport] = useState(false);
+    const [sheetId, setSheetId] = useState("");
+    const [sheetName, setSheetName] = useState("");
+    const [sheetData, setSheetData] = useState([]); 
+    const [sheetHeaders, setSheetHeaders] = useState([]); 
+    const [step, setStep] = useState(1); 
+    const [showRawPreview, setShowRawPreview] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [mapping, setMapping] = useState({});
+
+    const FIELD_GROUPS = [
+        { title: "ข้อมูลงาน (Work Info)", fields: [{ k: 'empId', label: 'รหัสพนักงาน *' }, { k: 'name', label: 'ชื่อจริง *' }, { k: 'surname', label: 'นามสกุล' }, { k: 'position', label: 'ตำแหน่ง' }, { k: 'department', label: 'แผนก' }, { k: 'sub_dept', label: 'ฝ่าย (Sub-Dept)' }, { k: 'project', label: 'โครงการ (Project)' }, { k: 'salary', label: 'เงินเดือน' }, { k: 'workSet', label: 'กะงาน (A, B, C, D)' }, { k: 'startDate', label: 'วันเริ่มงาน (วว/ดด/ปปปป)' }, { k: 'probationDate', label: 'วันผ่านโปร (วว/ดด/ปปปป)' }] },
+        { title: "ข้อมูลส่วนตัว (Personal)", fields: [{ k: 'age', label: 'อายุ' }, { k: 'personalId', label: 'เลขบัตรประชาชน' }, { k: 'issueDate', label: 'วันที่ออกบัตร' }, { k: 'phoneMobile', label: 'เบอร์มือถือ' }, { k: 'phoneHome', label: 'เบอร์บ้าน' }] },
+        { title: "ที่อยู่ (Address)", fields: [{ k: 'addressFull', label: 'ที่อยู่ตามทะเบียนบ้าน (เต็ม)' }, { k: 'houseNo', label: 'บ้านเลขที่' }, { k: 'moo', label: 'หมู่' }, { k: 'soi', label: 'ซอย' }, { k: 'road', label: 'ถนน' }, { k: 'subdistrict', label: 'ตำบล/แขวง' }, { k: 'district', label: 'อำเภอ/เขต' }, { k: 'province', label: 'จังหวัด' }, { k: 'nearHome', label: 'สถานที่ใกล้เคียง' }] },
+        { title: "ผู้ติดต่อฉุกเฉิน (Emergency Contact)", fields: [{ k: 'contactName', label: 'ชื่อผู้ติดต่อ' }, { k: 'contactSurname', label: 'นามสกุลผู้ติดต่อ' }, { k: 'contactPhone', label: 'เบอร์โทรผู้ติดต่อ' }, { k: 'contactRel', label: 'ความสัมพันธ์' }] }
+    ];
+
+    useEffect(() => { fetchEmp(); }, []);
+    const fetchEmp = async () => { 
+        try { 
+            const res = await fetch(`${API_URL}?action=getEmployees`); 
+            if(res.ok) setEmployees(await res.json()); 
+        } catch(e){} 
+    };
+
+    const handleDelete = async (id) => {
+        if(!confirm(`ลบพนักงาน ID: ${id}?`)) return;
+        await fetch(API_URL, { 
+            method: 'POST',
+            body: JSON.stringify({ 
+                system: 'contract',
+                action: 'deleteEmployee', 
+                id: id })
+        });
+        fetchEmp();
+    };
+
+    const handleBulkDelete = async () => {
+        if(selectedIds.length === 0) return;
+        if(!confirm(`ยืนยันการลบ ${selectedIds.length} รายการที่เลือก?`)) return;
+        
+        for (const id of selectedIds) {
+            await fetch(API_URL, { 
+                method: 'POST',
+                body: JSON.stringify({ 
+                    system: 'contract',
+                    action: 'deleteEmployee',
+                    id: id })
+            });
+        }
+        setSelectedIds([]); fetchEmp();
+    };
+
+    const handleFetchSheet = async () => {
+        if(!sheetId) return alert("กรุณาใส่ Google Sheet ID");
+        setLoading(true);
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    system: 'contract',
+                    action: 'fetchSheet',
+                    sheetId, 
+                    sheetName })
+            });
+            if(!res.ok) throw new Error("ไม่สามารถดึงข้อมูลได้");
+            const csvText = await res.text();
+            const { headers, data } = csvToJSON(csvText);
+            if(data.length === 0) throw new Error("ไม่พบข้อมูล");
+            
+            localStorage.setItem('cmt_last_sheet_id', sheetId);
+            localStorage.setItem('cmt_last_sheet_name', sheetName);
+            setSheetHeaders(headers); setSheetData(data); setStep(2); 
+            
+            const savedMapping = JSON.parse(localStorage.getItem('cmt_last_mapping') || '{}');
+            const newMap = { ...savedMapping };
+            const allKeys = FIELD_GROUPS.flatMap(g => g.fields.map(f => f.k));
+            allKeys.forEach(key => {
+                if (!newMap[key]) {
+                    const match = headers.find(h => h.toLowerCase().replace(/[^a-z0-9]/g,'') === key.toLowerCase() || h.includes(key));
+                    if(match) newMap[key] = match;
+                }
+            });
+            setMapping(newMap);
+        } catch(e) { alert(e.message); } finally { setLoading(false); }
+    };
+
+    const handleImportSubmit = async () => {
+        if(!mapping.empId || !mapping.name) return alert("กรุณาจับคู่ 'รหัสพนักงาน' และ 'ชื่อจริง'");
+        localStorage.setItem('cmt_last_mapping', JSON.stringify(mapping));
+        setLoading(true);
+        try {
+            let count = 0;
+            for(const row of sheetData) {
+                const newEmp = {};
+                FIELD_GROUPS.forEach(group => {
+                    group.fields.forEach(field => {
+                        const headerName = mapping[field.k];
+                        let val = headerName ? row[headerName] : "";
+                        if(field.k === 'salary' && val) val = val.replace(/,/g, '');
+                        newEmp[field.k] = val ? val.trim() : "";
+                    });
+                });
+                if(newEmp.empId && newEmp.name) {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            system: 'contract',
+                            action: 'saveEmployee',
+                            newEmp: newEmp })
+                    });
+                    count++;
+                }
+            }
+            alert(`นำเข้าข้อมูลสำเร็จ ${count} รายการ`);
+            setShowImport(false); setSheetData([]); setStep(1); fetchEmp();
+        } catch(e) { alert("Error: " + e.message); } finally { setLoading(false); }
+    };
+
+    const toggleSelect = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]);
+    const toggleSelectAll = (filtered) => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(e => e.empId));
+    const filtered = employees.filter(e => (e.name+e.surname+e.empId).toLowerCase().includes(search.toLowerCase()));
+
+    return (
+        <div className="animate-fade-in-up relative">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div className="flex items-center gap-4">
+                    <button onClick={onBack} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><ArrowLeft size={24} className="text-gray-600"/></button>
+                    <div><h1 className="text-2xl font-extrabold text-primary-navy">จัดการข้อมูลพนักงาน</h1><p className="text-gray-500 text-sm">Employee Data Management</p></div>
+                </div>
+                <div className="flex gap-3">
+                    {selectedIds.length > 0 && <button onClick={handleBulkDelete} className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl font-bold"><Trash2 size={18}/> ลบที่เลือก ({selectedIds.length})</button>}
+                    <button onClick={()=>{ setShowImport(true); setStep(1); }} className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold"><DownloadCloud size={18}/> Import Google Sheet</button>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                <div className="p-6 border-b border-gray-100 bg-white flex items-center gap-4">
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-3.5 text-gray-400" size={18}/>
+                        <input value={search} onChange={e=>setSearch(e.target.value)} className="w-full pl-10 p-3 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-primary-gold outline-none" placeholder="ค้นหาชื่อ หรือ รหัสพนักงาน..."/>
+                    </div>
+                    <div className="text-sm text-gray-500 font-bold ml-auto">{filtered.length} Employees</div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-primary-navy text-white text-xs uppercase tracking-wider">
+                            <tr>
+                                <th className="p-4 w-10 text-center"><input type="checkbox" onChange={()=>toggleSelectAll(filtered)} checked={filtered.length > 0 && selectedIds.length === filtered.length} className="w-4 h-4 rounded cursor-pointer accent-primary-gold"/></th>
+                                <th className="p-4">ID</th><th className="p-4">Name</th><th className="p-4">Position</th><th className="p-4">Department / Sub-Dept</th><th className="p-4 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {filtered.length === 0 ? <tr><td colSpan="6" className="p-10 text-center text-gray-400">ไม่พบข้อมูลพนักงาน</td></tr> : filtered.map(e => (
+                                <tr key={e.empId} className={`hover:bg-yellow-50/30 transition-colors ${selectedIds.includes(e.empId) ? "bg-blue-50/50" : ""}`}>
+                                    <td className="p-4 text-center"><input type="checkbox" checked={selectedIds.includes(e.empId)} onChange={()=>toggleSelect(e.empId)} className="w-4 h-4 rounded cursor-pointer accent-primary-navy"/></td>
+                                    <td className="p-4"><span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded border border-gray-200 text-gray-600">{e.empId}</span></td>
+                                    <td className="p-4 font-bold text-gray-800">{e.name} {e.surname}</td>
+                                    <td className="p-4 text-sm text-gray-600"><span className="bg-gray-50 px-2 py-1 rounded">{e.position}</span></td>
+                                    <td className="p-4 text-sm text-gray-500">{e.department} {e.subDept ? `/ ${e.subDept}` : ''}</td>
+                                    <td className="p-4 text-right"><button onClick={()=>handleDelete(e.empId)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full"><Trash2 size={18}/></button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* IMPORT MODAL */}
+            {showImport && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
+                        <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-bold text-lg text-primary-navy flex items-center gap-2"><span className="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">{step}</span>นำเข้าข้อมูล Google Sheet</h3>
+                            <button onClick={()=>!loading && setShowImport(false)} disabled={loading} className={`${loading ? 'opacity-30' : ''}`}><X size={20}/></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto bg-gray-50/50 flex-1">
+                            {step === 1 && (
+                                <div className="space-y-4 max-w-lg mx-auto py-10">
+                                    <div className="text-sm text-gray-600 bg-white p-4 rounded-xl border border-gray-200 shadow-sm"><b>วิธีใช้งาน:</b><ol className="list-decimal ml-5 mt-2 space-y-1"><li>เปิด Google Sheet</li><li>Share {'>'} Anyone with the link</li><li>คัดลอก ID จาก URL</li></ol></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">Sheet ID</label><input disabled={loading} value={sheetId} onChange={e=>setSheetId(e.target.value)} className="w-full p-3 border rounded-xl text-sm font-mono"/></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">Sheet Name</label><input disabled={loading} value={sheetName} onChange={e=>setSheetName(e.target.value)} className="w-full p-3 border rounded-xl text-sm"/></div>
+                                </div>
+                            )}
+                            {step === 2 && (
+                                <div className="space-y-6">
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                                        <div className="bg-gray-100 p-3 flex justify-between cursor-pointer" onClick={() => setShowRawPreview(!showRawPreview)}>
+                                            <div className="flex items-center gap-2"><Eye size={16}/><span className="font-bold text-sm">ตัวอย่างข้อมูลดิบ</span><span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full">{sheetData.length} Records</span></div><ChevronRight size={16}/>
+                                        </div>
+                                        {showRawPreview && <div className="overflow-x-auto p-4 border-t border-gray-200 max-h-60 bg-white"><table className="w-full text-xs text-left border-collapse"><thead><tr className="bg-gray-50">{sheetHeaders.map((h, i) => <th key={i} className="p-2 border">{h}</th>)}</tr></thead><tbody>{sheetData.slice(0, 5).map((row, i) => <tr key={i}>{sheetHeaders.map((h, j) => <td key={j} className="p-2 border">{row[h] || "-"}</td>)}</tr>)}</tbody></table></div>}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{FIELD_GROUPS.map((group, idx) => (<div key={idx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm"><h4 className="font-bold text-primary-navy border-b pb-2 mb-3 text-sm">{group.title}</h4><div className="space-y-3">{group.fields.map(f => (<div key={f.k} className="grid grid-cols-3 items-center gap-2"><label className="text-xs text-gray-500 col-span-1 text-right pr-2">{f.label}</label><div className="col-span-2"><select disabled={loading} value={mapping[f.k] || ""} onChange={e=>setMapping({...mapping, [f.k]: e.target.value})} className={`w-full p-1.5 border rounded text-xs ${mapping[f.k]?'bg-green-50 border-green-300':'bg-gray-50'}`}><option value="">(ไม่ระบุ)</option>{sheetHeaders.map((h,i) => <option key={i} value={h}>{h}</option>)}</select></div></div>))}</div></div>))}</div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-5 border-t bg-gray-50 flex justify-end gap-3 z-10">
+                            {step === 2 && <button onClick={()=>setStep(1)} disabled={loading} className="px-5 py-2.5 text-gray-500 hover:bg-gray-200 rounded-xl text-sm font-bold">ย้อนกลับ</button>}
+                            {step === 1 ? <button onClick={handleFetchSheet} disabled={loading} className="px-8 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm shadow-lg flex items-center gap-2">{loading ? "กำลังดึงข้อมูล..." : "ดึงข้อมูล"}</button> : <button onClick={handleImportSubmit} disabled={loading} className="px-8 py-2.5 bg-primary-navy text-white rounded-xl font-bold text-sm shadow-lg flex items-center gap-2">{loading ? "กำลังนำเข้า..." : "ยืนยันนำเข้าข้อมูล"}</button>}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- Main App ---
 export default function App() {
@@ -346,28 +842,25 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const directDocId = params.get('docId');
-    if (directDocId) {
-      setActiveDocId(directDocId);
-      setView('sign');
-    } else {
+    if (directDocId) { setActiveDocId(directDocId); setView('sign'); } 
+    else {
       const savedUser = localStorage.getItem('cmt_user');
       if (savedUser) { setUser(JSON.parse(savedUser)); setView('dashboard'); }
       else { setView('login'); }
     }
   }, []);
 
- const loadContracts = async () => {
+  const loadContracts = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}?action=getContracts`);
       if (!res.ok) throw new Error("Err");
       const data = await res.json();
       setContracts(Array.isArray(data) ? data : []);
-    } catch (e) { 
-        alert("เชื่อมต่อ Server ไม่ได้"); 
-        console.error(e);
-    } finally { setLoading(false); }
+    } catch (e) { alert("เชื่อมต่อ Server ไม่ได้"); }
+    finally { setLoading(false); }
   };
+
   useEffect(() => { if (view === 'dashboard') loadContracts(); }, [view]);
 
   const handleLogin = (u, p) => {
@@ -396,24 +889,25 @@ export default function App() {
                     setGlobalLoading(true);
                     await fetch(API_URL, { 
                         method: 'POST', 
-                        body: JSON.stringify({ action: 'deleteContract', id: id })
+                        body: JSON.stringify({
+                            action: 'deleteContract',
+                            system: 'contract',
+                            id: id }) 
                     }); 
-                    await loadContracts();
-                    setGlobalLoading(false);
+                    await loadContracts(); 
+                    setGlobalLoading(false); 
                 }
             }}
-            
             onOpenSign={(id) => { setActiveDocId(id); setView('sign'); }}
           />
         )}
-        {view === 'employees' && <EmployeeManager onBack={() => setView('dashboard')} />}
-        {view === 'create' && <CreateContract onCancel={() => setView('dashboard')} onSuccess={() => setView('dashboard')} />}
+        {view === 'create' && <CreateContract onCancel={() => setView('dashboard')} onSuccess={() => { setView('dashboard'); loadContracts(); }} />}
         {view === 'settings' && <SettingsPage onBack={() => setView('dashboard')} />}
+        {view === 'employees' && <EmployeeManager onBack={() => setView('dashboard')} />}
         {view === 'sign' && <SignPage docId={activeDocId} onBack={() => { window.history.pushState({}, '', '/'); setView(user ? 'dashboard' : 'login'); }} isAdmin={!!user} />}
       </div>
 
-    {globalLoading && <LoadingOverlay message="กำลังลบข้อมูล..." />}
-
+      {globalLoading && <LoadingOverlay message="กำลังลบข้อมูล..." />}
     </div>
   );
 }
@@ -438,16 +932,10 @@ const Navbar = ({ onLogout, onSettings, user }) => (
                   <p className="text-sm font-bold text-[#ffde91]">Administrator</p>
                   <p className="text-[10px] text-gray-400 uppercase tracking-widest">System Admin</p>
               </div>
-              <div className="h-10 w-10 bg-gradient-to-br from-[#ffde91] to-yellow-600 rounded-full flex items-center justify-center text-primary-navy font-black text-lg shadow-lg border-2 border-primary-navy">
-                  A
-              </div>
+              <div className="h-10 w-10 bg-gradient-to-br from-[#ffde91] to-yellow-600 rounded-full flex items-center justify-center text-primary-navy font-black text-lg shadow-lg border-2 border-primary-navy">A</div>
               <div className="h-8 w-px bg-gray-700 mx-1"></div>
-              <button onClick={onSettings} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white" title="Settings">
-                  <Sliders size={20}/>
-              </button>
-              <button onClick={onLogout} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-red-400" title="Logout">
-                  <LogOut size={20}/>
-              </button>
+              <button onClick={onSettings} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white" title="Settings"><Sliders size={20}/></button>
+              <button onClick={onLogout} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-red-400" title="Logout"><LogOut size={20}/></button>
           </div>
       )}
     </div>
@@ -479,21 +967,12 @@ const Dashboard = ({ contracts, loading, onCreate, onManageEmployees, onRefresh,
     <div className="animate-fade-in-up">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
         <div className="flex items-center gap-4">
-           <div className="bg-yellow-100 p-4 rounded-2xl shadow-sm border border-yellow-200/50">
-              <FileText size={40} className="text-yellow-600 drop-shadow-sm" />
-           </div>
-           <div>
-               <h1 className="text-3xl font-extrabold text-primary-navy">Dashboard</h1>
-               <p className="text-gray-500 mt-1">ภาพรวมการจัดการสัญญาจ้างงาน</p>
-           </div>
+           <div className="bg-yellow-100 p-4 rounded-2xl shadow-sm border border-yellow-200/50"><FileText size={40} className="text-yellow-600 drop-shadow-sm" /></div>
+           <div><h1 className="text-3xl font-extrabold text-primary-navy">Dashboard</h1><p className="text-gray-500 mt-1">ภาพรวมการจัดการสัญญาจ้างงาน</p></div>
         </div>
         <div className="flex gap-3">
-           <button onClick={onManageEmployees} className="flex items-center gap-2 bg-white border-2 border-secondary-darkgold text-secondary-darkgold hover:bg-secondary-darkgold hover:text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all hover:shadow-md">
-              <Users size={20}/> จัดการพนักงาน
-           </button>
-           <button onClick={onCreate} className="flex items-center gap-2 bg-primary-navy hover:bg-blue-900 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl">
-              <Plus size={20}/> สร้างสัญญาใหม่
-           </button>
+           <button onClick={onManageEmployees} className="flex items-center gap-2 bg-white border-2 border-secondary-darkgold text-secondary-darkgold hover:bg-secondary-darkgold hover:text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all hover:shadow-md"><Users size={20}/> จัดการพนักงาน</button>
+           <button onClick={onCreate} className="flex items-center gap-2 bg-primary-navy hover:bg-blue-900 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl"><Plus size={20}/> สร้างสัญญาใหม่</button>
         </div>
       </div>
 
@@ -577,23 +1056,17 @@ const StatusBadge = ({ status, step }) => {
 const csvToJSON = (csv) => {
     const lines = csv.split(/\r\n|\n/);
     const result = [];
-    // ฟังก์ชันแยก Column โดยคำนึงถึงเครื่องหมาย "..." (CSV standard)
     const splitCSV = (str) => {
         const matches = str.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
         return matches.map(m => m.replace(/^"|"$/g, '').replace(/""/g, '"'));
     };
-    
     const headers = splitCSV(lines[0]);
-
     for (let i = 1; i < lines.length; i++) {
         if (!lines[i]) continue;
         const obj = {};
         const currentline = splitCSV(lines[i]);
-        
-        // ถ้าจำนวนข้อมูลไม่เท่ากับหัวตาราง ให้ข้าม หรือพยายาม map เท่าที่มี
         if (currentline.length > 0) {
             headers.forEach((header, index) => {
-                // ลบเครื่องหมายคำพูดที่อาจติดมา
                 let key = header.trim().replace(/^"|"$/g, ''); 
                 let val = currentline[index] ? currentline[index].trim() : "";
                 obj[key] = val;
@@ -604,709 +1077,6 @@ const csvToJSON = (csv) => {
     return { headers, data: result }; 
 };
 
-// ... (ฟังก์ชัน csvToJSON และอื่นๆ คงเดิม)
-
-// ... (ส่วน csvToJSON และอื่นๆ คงเดิม)
-
-const EmployeeManager = ({ onBack }) => {
-    const [employees, setEmployees] = useState([]);
-    const [search, setSearch] = useState("");
-    const [selectedIds, setSelectedIds] = useState([]);
-    
-    // State สำหรับ Import
-    const [showImport, setShowImport] = useState(false);
-    const [sheetId, setSheetId] = useState("");
-    const [sheetName, setSheetName] = useState("");
-    const [sheetData, setSheetData] = useState([]); 
-    const [sheetHeaders, setSheetHeaders] = useState([]); 
-    const [step, setStep] = useState(1); 
-    const [showRawPreview, setShowRawPreview] = useState(false);
-    
-    // *** 1. เพิ่ม State Loading ***
-    const [loading, setLoading] = useState(false);
-
-    // เก็บการจับคู่ (Mapping)
-    const [mapping, setMapping] = useState({});
-
-    // ฟิลด์ข้อมูล (Field Groups) - เหมือนเดิม
-    const FIELD_GROUPS = [
-        {
-            title: "ข้อมูลงาน (Work Info)",
-            fields: [
-                { k: 'empId', label: 'รหัสพนักงาน *' },
-                { k: 'name', label: 'ชื่อจริง *' },
-                { k: 'surname', label: 'นามสกุล' },
-                { k: 'position', label: 'ตำแหน่ง' },
-                { k: 'department', label: 'แผนก' },
-                { k: 'sub_dept', label: 'ฝ่าย (Sub-Dept)' },
-                { k: 'project', label: 'โครงการ (Project)' },
-                { k: 'salary', label: 'เงินเดือน' },
-                { k: 'workSet', label: 'กะงาน (A, B, C, D)' },
-                { k: 'startDate', label: 'วันเริ่มงาน (วว/ดด/ปปปป)' },
-                { k: 'probationDate', label: 'วันผ่านโปร (วว/ดด/ปปปป)' }
-            ]
-        },
-        {
-            title: "ข้อมูลส่วนตัว (Personal)",
-            fields: [
-                { k: 'age', label: 'อายุ' },
-                { k: 'personalId', label: 'เลขบัตรประชาชน' },
-                { k: 'issueDate', label: 'วันที่ออกบัตร' },
-                { k: 'phoneMobile', label: 'เบอร์มือถือ' },
-                { k: 'phoneHome', label: 'เบอร์บ้าน' }
-            ]
-        },
-        {
-            title: "ที่อยู่ (Address)",
-            fields: [
-                { k: 'addressFull', label: 'ที่อยู่ตามทะเบียนบ้าน (เต็ม)' },
-                { k: 'houseNo', label: 'บ้านเลขที่' },
-                { k: 'moo', label: 'หมู่' },
-                { k: 'soi', label: 'ซอย' },
-                { k: 'road', label: 'ถนน' },
-                { k: 'subdistrict', label: 'ตำบล/แขวง' },
-                { k: 'district', label: 'อำเภอ/เขต' },
-                { k: 'province', label: 'จังหวัด' },
-                { k: 'nearHome', label: 'สถานที่ใกล้เคียง' }
-            ]
-        },
-        {
-            title: "ผู้ติดต่อฉุกเฉิน (Emergency Contact)",
-            fields: [
-                { k: 'contactName', label: 'ชื่อผู้ติดต่อ' },
-                { k: 'contactSurname', label: 'นามสกุลผู้ติดต่อ' },
-                { k: 'contactPhone', label: 'เบอร์โทรผู้ติดต่อ' },
-                { k: 'contactRel', label: 'ความสัมพันธ์' }
-            ]
-        }
-    ];
-
-    useEffect(() => { fetchEmp(); }, []);
-    const fetchEmp = async () => { 
-        try { 
-            const res = await fetch(`${API_URL}?action=getEmployees`); // <--- แก้ตรงนี้
-            if(res.ok) setEmployees(await res.json()); 
-        } catch(e){} 
-    };
-    useEffect(() => {
-        if (showImport) {
-            const savedId = localStorage.getItem('cmt_last_sheet_id');
-            const savedName = localStorage.getItem('cmt_last_sheet_name');
-            if (savedId) setSheetId(savedId);
-            if (savedName) setSheetName(savedName);
-        }
-    }, [showImport]);
-
-    const handleDelete = async (id) => {
-        if(!confirm(`ลบพนักงาน ID: ${id}?`)) return;
-        await fetch(API_URL, { 
-            method: 'POST',
-            body: JSON.stringify({ action: 'deleteEmployee', id: id }) // <--- ใส่ action
-        });
-        fetchEmp();
-    };
-
-    const handleBulkDelete = async () => {
-        if(selectedIds.length === 0) return;
-        if(!confirm(`ยืนยันการลบ ${selectedIds.length} รายการที่เลือก?`)) return;
-        
-        // วนลูปส่งคำสั่งลบทีละคน
-        for (const id of selectedIds) {
-            await fetch(API_URL, { 
-                method: 'POST',
-                body: JSON.stringify({ action: 'deleteEmployee', id: id })
-            });
-        }
-        setSelectedIds([]); fetchEmp();
-    };
-
-    const handleFetchSheet = async () => {
-        if(!sheetId) return alert("กรุณาใส่ Google Sheet ID");
-        
-        setLoading(true); // *** เริ่มโหลด ***
-        try {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                body: JSON.stringify({action: 'fetchSheet', sheetId, sheetName })
-            });
-            if(!res.ok) throw new Error("ไม่สามารถดึงข้อมูลได้ (ตรวจสอบ ID หรือ การแชร์)");
-            
-            const csvText = await res.text();
-            const { headers, data } = csvToJSON(csvText);
-            
-            if(data.length === 0) throw new Error("ไม่พบข้อมูลใน Sheet");
-            
-            localStorage.setItem('cmt_last_sheet_id', sheetId);
-            localStorage.setItem('cmt_last_sheet_name', sheetName);
-
-            setSheetHeaders(headers);
-            setSheetData(data);
-            setStep(2); 
-
-            const savedMapping = JSON.parse(localStorage.getItem('cmt_last_mapping') || '{}');
-            const newMap = { ...savedMapping };
-            const allKeys = FIELD_GROUPS.flatMap(g => g.fields.map(f => f.k));
-            
-            allKeys.forEach(key => {
-                if (!newMap[key]) {
-                    const match = headers.find(h => 
-                        h.toLowerCase().replace(/[^a-z0-9]/g,'') === key.toLowerCase() || 
-                        h.includes(key)
-                    );
-                    if(match) newMap[key] = match;
-                }
-            });
-            setMapping(newMap);
-
-        } catch(e) { 
-            alert(e.message); 
-        } finally {
-            setLoading(false); // *** จบโหลด ***
-        }
-    };
-
-    const handleImportSubmit = async () => {
-        if(!mapping.empId || !mapping.name) return alert("กรุณาจับคู่ 'รหัสพนักงาน' และ 'ชื่อจริง' เป็นอย่างน้อย");
-        
-        localStorage.setItem('cmt_last_mapping', JSON.stringify(mapping));
-        setLoading(true); // *** เริ่มโหลด ***
-
-        try {
-            let count = 0;
-            for(const row of sheetData) {
-                const newEmp = {};
-                FIELD_GROUPS.forEach(group => {
-                    group.fields.forEach(field => {
-                        const headerName = mapping[field.k];
-                        let val = headerName ? row[headerName] : "";
-                        if(field.k === 'salary' && val) val = val.replace(/,/g, '');
-                        newEmp[field.k] = val ? val.trim() : "";
-                    });
-                });
-
-                if(newEmp.empId && newEmp.name) {
-                    await fetch(API_URL, {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            action: 'saveEmployee', // <--- ต้องมี action
-                            newEmp: newEmp          // ส่ง object พนักงานไป
-                        })
-                    });
-                    count++;
-                }
-            }
-            alert(`นำเข้าข้อมูลสำเร็จ ${count} รายการ`);
-            setShowImport(false);
-            setSheetData([]);
-            setStep(1);
-            fetchEmp();
-        } catch(e) { 
-            alert("Error: " + e.message); 
-        } finally {
-            setLoading(false); // *** จบโหลด ***
-        }
-    };
-
-    const toggleSelect = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]);
-    const toggleSelectAll = (filtered) => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(e => e.empId));
-    const filtered = employees.filter(e => (e.name+e.surname+e.empId).toLowerCase().includes(search.toLowerCase()));
-
-    return (
-        <div className="animate-fade-in-up relative">
-            {/* ... (ส่วน Header เดิม) ... */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><ArrowLeft size={24} className="text-gray-600"/></button>
-                    <div>
-                        <h1 className="text-2xl font-extrabold text-primary-navy">จัดการข้อมูลพนักงาน</h1>
-                        <p className="text-gray-500 text-sm">Employee Data Management</p>
-                    </div>
-                </div>
-                <div className="flex gap-3">
-                    {selectedIds.length > 0 && (
-                        <button onClick={handleBulkDelete} className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-100 transition-all shadow-sm">
-                            <Trash2 size={18}/> ลบที่เลือก ({selectedIds.length})
-                        </button>
-                    )}
-                    <button onClick={()=>{ setShowImport(true); setStep(1); }} className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl hover:bg-green-700 transition-all">
-                        <DownloadCloud size={18}/> Import Google Sheet
-                    </button>
-                </div>
-            </div>
-
-            {/* ... (ส่วน Table เดิม) ... */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-white flex items-center gap-4">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-3.5 text-gray-400" size={18}/>
-                        <input value={search} onChange={e=>setSearch(e.target.value)} className="w-full pl-10 p-3 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-primary-gold focus:bg-white focus:border-primary-gold outline-none transition-all text-sm" placeholder="ค้นหาชื่อ หรือ รหัสพนักงาน..."/>
-                    </div>
-                    <div className="text-sm text-gray-500 font-bold ml-auto">{filtered.length} Employees</div>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-primary-navy text-white text-xs uppercase tracking-wider">
-                            <tr>
-                                <th className="p-4 w-10 text-center"><input type="checkbox" onChange={()=>toggleSelectAll(filtered)} checked={filtered.length > 0 && selectedIds.length === filtered.length} className="w-4 h-4 rounded cursor-pointer accent-primary-gold"/></th>
-                                <th className="p-4">ID</th><th className="p-4">Name</th><th className="p-4">Position</th><th className="p-4">Department / Sub-Dept</th><th className="p-4 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filtered.length === 0 ? (
-                                <tr><td colSpan="6" className="p-10 text-center text-gray-400">ไม่พบข้อมูลพนักงาน</td></tr>
-                            ) : filtered.map(e => (
-                                <tr key={e.empId} className={`hover:bg-yellow-50/30 transition-colors ${selectedIds.includes(e.empId) ? "bg-blue-50/50" : ""}`}>
-                                    <td className="p-4 text-center"><input type="checkbox" checked={selectedIds.includes(e.empId)} onChange={()=>toggleSelect(e.empId)} className="w-4 h-4 rounded cursor-pointer accent-primary-navy"/></td>
-                                    <td className="p-4"><span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded border border-gray-200 text-gray-600">{e.empId}</span></td>
-                                    <td className="p-4 font-bold text-gray-800">{e.name} {e.surname}</td>
-                                    <td className="p-4 text-sm text-gray-600"><span className="bg-gray-50 px-2 py-1 rounded">{e.position}</span></td>
-                                    <td className="p-4 text-sm text-gray-500">{e.department} {e.subDept ? `/ ${e.subDept}` : ''}</td>
-                                    <td className="p-4 text-right"><button onClick={()=>handleDelete(e.empId)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"><Trash2 size={18}/></button></td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* --- IMPORT MODAL --- */}
-            {showImport && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
-                        <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
-                            <h3 className="font-bold text-lg text-primary-navy flex items-center gap-2">
-                                <span className="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">{step}</span>
-                                นำเข้าข้อมูล Google Sheet
-                            </h3>
-                            {/* Disable close button while loading */}
-                            <button onClick={()=>!loading && setShowImport(false)} disabled={loading} className={`${loading ? 'opacity-30 cursor-not-allowed' : ''}`}><X size={20} className="text-gray-400 hover:text-red-500"/></button>
-                        </div>
-                        
-                        <div className="p-6 overflow-y-auto bg-gray-50/50 flex-1">
-                            {step === 1 && (
-                                <div className="space-y-4 max-w-lg mx-auto py-10">
-                                    <div className="text-sm text-gray-600 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                        <b>วิธีใช้งาน:</b>
-                                        <ol className="list-decimal ml-5 mt-2 space-y-1">
-                                            <li>เปิด Google Sheet ของคุณ</li>
-                                            <li>กด Share (มุมขวาบน) {'>'} เลือก Anyone with the link (ทุกคนที่มีลิงก์)</li>
-                                            <li>คัดลอก ID จาก URL มาใส่ (ระหว่าง /d/ กับ /edit)</li>
-                                        </ol>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Sheet ID</label>
-                                        <input disabled={loading} value={sheetId} onChange={e=>setSheetId(e.target.value)} placeholder="เช่น 1BxiM_xxxx..." className="w-full p-3 border rounded-xl text-sm font-mono focus:ring-2 focus:ring-green-500 outline-none disabled:bg-gray-100"/>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">ชื่อแผ่นงาน (Sheet Name)</label>
-                                        <input disabled={loading} value={sheetName} onChange={e=>setSheetName(e.target.value)} placeholder="เช่น Sheet1 (เว้นว่างเพื่อเอาแผ่นแรก)" className="w-full p-3 border rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none disabled:bg-gray-100"/>
-                                    </div>
-                                </div>
-                            )}
-
-                            {step === 2 && (
-                                <div className="space-y-6">
-                                    {/* Raw Data Preview */}
-                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                                        <div 
-                                            className="bg-gray-100 p-3 flex justify-between items-center cursor-pointer hover:bg-gray-200 transition-colors"
-                                            onClick={() => setShowRawPreview(!showRawPreview)}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <Eye size={16} className="text-gray-600"/>
-                                                <span className="font-bold text-sm text-gray-700">ตัวอย่างข้อมูลดิบ (Raw Data Preview)</span>
-                                                <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">{sheetData.length} Records</span>
-                                            </div>
-                                            <ChevronRight size={16} className={`transform transition-transform ${showRawPreview ? 'rotate-90' : ''}`}/>
-                                        </div>
-                                        {showRawPreview && (
-                                            <div className="overflow-x-auto p-4 border-t border-gray-200 max-h-60 bg-white">
-                                                <table className="w-full text-xs text-left border-collapse">
-                                                    <thead>
-                                                        <tr className="bg-gray-50">
-                                                            {sheetHeaders.map((h, i) => (
-                                                                <th key={i} className="p-2 border border-gray-200 font-bold text-gray-600 whitespace-nowrap">{h}</th>
-                                                            ))}
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {sheetData.slice(0, 5).map((row, i) => (
-                                                            <tr key={i} className="hover:bg-gray-50">
-                                                                {sheetHeaders.map((h, j) => (
-                                                                    <td key={j} className="p-2 border border-gray-200 whitespace-nowrap text-gray-600">{row[h] || "-"}</td>
-                                                                ))}
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Mapping Section */}
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <Sliders size={18} className="text-primary-navy"/>
-                                            <h4 className="font-bold text-primary-navy">จับคู่คอลัมน์ (Data Mapping)</h4>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {FIELD_GROUPS.map((group, idx) => (
-                                                <div key={idx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                                    <h4 className="font-bold text-primary-navy border-b pb-2 mb-3 text-sm">{group.title}</h4>
-                                                    <div className="space-y-3">
-                                                        {group.fields.map(f => (
-                                                            <div key={f.k} className="grid grid-cols-3 items-center gap-2">
-                                                                <label className="text-xs text-gray-500 col-span-1 text-right pr-2">{f.label}</label>
-                                                                <div className="col-span-2">
-                                                                    <select 
-                                                                        disabled={loading}
-                                                                        value={mapping[f.k] || ""} 
-                                                                        onChange={e=>setMapping({...mapping, [f.k]: e.target.value})}
-                                                                        className={`w-full p-1.5 border rounded text-xs outline-none ${mapping[f.k] ? 'bg-green-50 border-green-300 text-green-800' : 'bg-gray-50 text-gray-400'} disabled:bg-gray-100`}
-                                                                    >
-                                                                        <option value="">(ไม่ระบุ)</option>
-                                                                        {sheetHeaders.map((h,i) => <option key={i} value={h}>{h}</option>)}
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="p-5 border-t bg-gray-50 flex justify-end gap-3 z-10">
-                            {step === 2 && (
-                                <button 
-                                    onClick={()=>setStep(1)} 
-                                    disabled={loading}
-                                    className={`px-5 py-2.5 text-gray-500 hover:bg-gray-200 rounded-xl text-sm font-bold ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    ย้อนกลับ
-                                </button>
-                            )}
-                            
-                            {step === 1 ? (
-                                <button 
-                                    onClick={handleFetchSheet} 
-                                    disabled={loading}
-                                    className={`px-8 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl hover:bg-green-700 transition-all flex items-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    {loading ? <><RotateCw className="animate-spin" size={18}/> กำลังดึงข้อมูล...</> : "ดึงข้อมูล (Fetch Data)"}
-                                </button>
-                            ) : (
-                                <button 
-                                    onClick={handleImportSubmit} 
-                                    disabled={loading}
-                                    className={`px-8 py-2.5 bg-primary-navy text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl hover:bg-blue-900 transition-all flex items-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    {loading ? <><RotateCw className="animate-spin" size={18}/> กำลังนำเข้า...</> : "ยืนยันนำเข้าข้อมูล"}
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// --- CREATE FORM ---
-const CreateContract = ({ onCancel, onSuccess }) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    empId: '', name: '', surname: '', position: '', salary: '20000', 
-    department: '', sub_dept: '', project: '', contractType: 'contract_page_1', company: COMPANIES[0], workSet: 'D',
-    witness1_name: 'พยานคนที่ 1', witness1_email: '', witness2_name: 'พยานคนที่ 2', witness2_email: '',
-    signer1_name: 'ดร.กฤษณา สุขบุญญสถิตย์', signer1_email: '', // Admin/Manager
-    startDate: '', probationDate: '', comment: '',
-    age: '', personalId: '', issueDate: '', addressFull: '',
-    houseNo: '', moo: '', soi: '', road: '', subdistrict: '', district: '', province: '',
-    phoneHome: '', phoneMobile: '', nearHome: '',
-    contactName: '', contactSurname: '', contactPhone: '', contactRel: ''
-  });
-  
-  const [employees, setEmployees] = useState([]);
-  const [search, setSearch] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  // Load Settings and Employees
-  useEffect(() => { 
-    fetch(`${API_URL}?action=getEmployees`)
-        .then(r => r.json())
-        .then(data => {
-            if (Array.isArray(data)) setEmployees(data);
-        })
-        .catch(e => console.error("Error loading employees:", e));
-    fetch(`${API_URL}?action=getSettings`)
-            .then(r => r.json())
-            .then(settings => {
-                if(settings) {
-                    setForm(prev => ({
-                        ...prev,
-                        signer1_name: settings.signer1_name || "ดร.กฤษณา สุขบุญญสถิตย์",
-                        signer1_email: settings.signer1_email || "",
-                        witness1_name: settings.signer3_name || "พยานคนที่ 1", 
-                        witness1_email: settings.signer3_email || "",
-                        witness2_name: settings.signer4_name || "พยานคนที่ 2",
-                        witness2_email: settings.signer4_email || ""
-                    }));
-                }
-            })
-            .catch(e => console.error("Error loading settings:", e));
-    }, []);
-
-  const handleSearch = (e) => {
-      setSearch(e.target.value);
-      setForm({...form, name: e.target.value});
-      setShowDropdown(true);
-  };
-
-  const selectEmp = (emp) => {
-      const isoStart = convertToInputDate(emp.startDate); 
-      const isoProbation = convertToInputDate(emp.probationDate);
-      
-      setForm(prev => ({
-          ...prev,
-          empId: emp.empId || emp.emp_code, 
-          name: emp.name, 
-          surname: emp.surname, 
-          position: emp.position, 
-          department: emp.department, 
-          sub_dept: emp.subDept || emp.sub_dept || "", 
-          project: emp.project || "",
-          salary: prev.salary, 
-          age: emp.age || "",
-          personalId: emp.personal_id || emp.personalId || "",
-          issueDate: emp.personal_id_issue || emp.personalIdIssue || "",
-          addressFull: emp.address_full || emp.addressFull || "",
-          houseNo: emp.house_no || emp.houseNo || "",
-          moo: emp.moo || "",
-          soi: emp.soi || "",
-          road: emp.road || "",
-          subdistrict: emp.subdistrict || "",
-          district: emp.district || "",
-          province: emp.province || "",
-          phoneHome: emp.phone_home || emp.phoneHome || "",
-          phoneMobile: emp.phone_mobile || emp.phoneMobile || "",
-          nearHome: emp.near_home || emp.nearHome || "",
-          contactName: emp.contact_name || emp.contactName || "",
-          contactSurname: emp.contact_surname || emp.contactSurname || "",
-          contactPhone: emp.contact_phone || emp.contactPhone || "",
-          contactRel: emp.contact_rel || emp.contactRel || "",
-          startDate: isoStart, 
-          probationDate: isoProbation
-      }));
-      setSearch(emp.name);
-      setShowDropdown(false);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const now = new Date();
-    const thaiYear = now.getFullYear() + 543;
-    const dateStr = `${now.getDate()}/${now.getMonth()+1}/${thaiYear}`;
-    const startObj = parseDateToThaiObj(form.startDate);
-    const probObj = parseDateToThaiObj(form.probationDate);
-
-    const companyPrefixes = {
-        "บริษัท คาร์เปท เมกเกอร์ (ประเทศไทย) จำกัด": "CMT",
-        "บริษัท คาร์เปท เมกเกอร์ พี2ดับบลิว (ประเทศไทย) จำกัด": "P2W",
-        "บริษัท ไอเค รีเสิร์จ จำกัด": "IKR",
-        "บริษัท อินเตอร์ ไกร จำกัด": "IKK"
-    };
-    const prefix = companyPrefixes[form.company] || "CMT";
-
-    const contractData = {
-      Fields: {
-        empId: form.empId, 
-        "DD/MM/YYYY": dateStr, 
-        Name: form.name, 
-        Surname: form.surname, 
-        Position: form.position,
-        Salary: parseInt(form.salary).toLocaleString(), 
-        Thai_salary: bahtText(form.salary),
-        Department: form.department, 
-        Subdepartment: form.sub_dept, 
-        project: form.project,
-        Address: form.addressFull, 
-        Age: form.age, 
-        PersonalID: form.personalId, 
-        PersonalID_validdate: form.issueDate,
-        ContractNO: `${prefix}/${form.empId}`,
-        Day_st: startObj.d || now.getDate(), Month_st: startObj.m || THAI_MONTHS[now.getMonth()], Year_st: startObj.y || (now.getFullYear()+543),
-        Day_en: probObj.d || "", Month_en: probObj.m || "", Year_en: probObj.y || "",
-        Comment: form.comment,
-        House_id: form.houseNo, Moo: form.moo, Street: form.soi, Road: form.road,
-        Subdistrict: form.subdistrict, District: form.district, Province: form.province,
-        Hounse_phone_number: form.phoneHome, Mobile_phone_number: form.phoneMobile,
-        Place_near_home: form.nearHome,
-        Person_contact_name: form.contactName, Person_contact_surname: form.contactSurname,
-        Person_contact_phone: form.contactPhone, Person_contact_relationship: form.contactRel
-      },
-      SelectedWorkSet: form.workSet,
-      SignatureNames: { Name1: form.signer1_name, Name2: `${form.name} ${form.surname}`, Name3: form.witness1_name, Name4: form.witness2_name },
-      SignatureImages: {}
-    };
-
-    const payload = {
-      action: 'createContract',
-      contract_type: form.contractType, company_name: form.company, status: 'Pending Signer 1', current_step: 1, data: contractData,
-      signer1_name: form.signer1_name, signer1_email: form.signer1_email,
-      signer2_name: `${form.name} ${form.surname}`, signer2_email: "carpetmaker05@gmail.com", // In real app, might want to ask for user email
-      signer3_name: form.witness1_name, signer3_email: form.witness1_email,
-      signer4_name: form.witness2_name, signer4_email: form.witness2_email,
-      sig1: null, sig2: null, sig3: null, sig4: null
-    };
-
-    try {
-      await fetch(API_URL, { 
-        method: 'POST', 
-        body: JSON.stringify(payload) 
-      });
-      onSuccess();
-    } catch (err) { 
-    alert("Error connecting to server"); 
-    setIsSubmitting(false); // <--- ถ้าพัง ให้หยุดหมุน
-    }
-
-  const filteredEmp = employees.filter(e => (e.name+e.surname).toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div className="max-w-5xl mx-auto bg-white p-8 rounded-3xl shadow-2xl border border-secondary-silver/30 animate-fade-in-up">
-      <div className="flex justify-between items-center mb-8 border-b border-gray-100 pb-6">
-        <div>
-            <h2 className="text-3xl font-extrabold text-primary-navy flex items-center gap-3">
-                <div className="bg-primary-navy p-2 rounded-xl text-white"><FileText size={24}/></div>
-                สร้างสัญญาใหม่
-            </h2>
-            <p className="text-gray-500 mt-1 ml-14">กรอกข้อมูลเพื่อสร้างเอกสารสัญญา</p>
-        </div>
-        <button onClick={onCancel} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={24} className="text-gray-400"/></button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Section 1: General Info */}
-        <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100">
-            <h3 className="font-bold text-lg text-primary-navy mb-4 flex items-center gap-2"><Settings size={18}/> ข้อมูลทั่วไป</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">บริษัท</label><select name="company" value={form.company} onChange={e=>setForm({...form, company: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-primary-gold outline-none transition-all">{COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">ประเภทสัญญา</label><select name="contractType" value={form.contractType} onChange={e=>setForm({...form, contractType: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-primary-gold outline-none transition-all">{Object.entries(CONTRACT_TYPES).map(([k,v])=><option value={k} key={k}>{v}</option>)}</select></div>
-            </div>
-        </div>
-
-        {/* Section 2: Employee Info */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-lg text-primary-navy mb-4 flex items-center gap-2"><Users size={18}/> ข้อมูลพนักงาน (Employee)</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Search */}
-                <div className="relative col-span-2">
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">ค้นหาชื่อพนักงาน</label>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-3.5 text-gray-400" size={18}/>
-                        <input value={search} onChange={handleSearch} onFocus={()=>setShowDropdown(true)} onBlur={()=>setTimeout(()=>setShowDropdown(false),200)} className="w-full pl-10 p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-gold outline-none" required placeholder="พิมพ์ชื่อเพื่อค้นหา..." />
-                    </div>
-                    {showDropdown && filteredEmp.length > 0 && (
-                        <div className="absolute z-10 w-full bg-white border shadow-xl max-h-60 overflow-auto rounded-xl mt-2 p-2">
-                            {filteredEmp.map(e => <div key={e.empId} onClick={()=>selectEmp(e)} className="p-3 hover:bg-blue-50 cursor-pointer text-sm rounded-lg flex justify-between items-center group"><span className="font-bold text-gray-700">{e.name} {e.surname}</span> <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded group-hover:bg-white">{e.position}</span></div>)}
-                        </div>
-                    )}
-                </div>
-
-                {/* Core Info */}
-                <Input label="ชื่อ" name="name" val={form.name} onChange={e=>setForm({...form, name:e.target.value})} required />
-                <Input label="นามสกุล" name="surname" val={form.surname} onChange={e=>setForm({...form, surname:e.target.value})} required />
-                <Input label="รหัสพนักงาน" name="empId" val={form.empId} onChange={e=>setForm({...form, empId:e.target.value})} required />
-                <Input label="ตำแหน่ง" name="position" val={form.position} onChange={e=>setForm({...form, position:e.target.value})} required />
-                <Input label="แผนก" name="department" val={form.department} onChange={e=>setForm({...form, department:e.target.value})} />
-                <Input label="ฝ่าย (Sub-dept)" name="sub_dept" val={form.sub_dept} onChange={e=>setForm({...form, sub_dept:e.target.value})} />
-                <Input label="เงินเดือน (บาท)" name="salary" type="number" val={form.salary} onChange={e=>setForm({...form, salary:e.target.value})} required />
-                <Input label="หมายเหตุ (Comment)" name="comment" val={form.comment} onChange={e=>setForm({...form, comment:e.target.value})} placeholder="ระบุเงื่อนไขเพิ่มเติม (ถ้ามี)" />
-
-                {/* Personal Info */}
-                <h4 className="col-span-2 font-bold text-gray-600 border-b pb-2 mt-4">ข้อมูลส่วนตัวและที่อยู่</h4>
-                <Input label="อายุ (ปี)" name="age" val={form.age} onChange={e=>setForm({...form, age:e.target.value})} />
-                <Input label="เลขบัตรประชาชน" name="personalId" val={form.personalId} onChange={e=>setForm({...form, personalId:e.target.value})} />
-                <Input label="วันที่ออกบัตร" name="issueDate" val={form.issueDate} onChange={e=>setForm({...form, issueDate:e.target.value})} />
-                <div className="col-span-2"><Input label="ที่อยู่ตามทะเบียนบ้าน (เต็ม)" name="addressFull" val={form.addressFull} onChange={e=>setForm({...form, addressFull:e.target.value})} /></div>
-                
-                {/* Detailed Address for Attachments */}
-                <div className="col-span-2 grid grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl">
-                   <Input label="บ้านเลขที่" name="houseNo" val={form.houseNo} onChange={e=>setForm({...form, houseNo:e.target.value})} />
-                   <Input label="หมู่ที่" name="moo" val={form.moo} onChange={e=>setForm({...form, moo:e.target.value})} />
-                   <Input label="ตรอก/ซอย" name="soi" val={form.soi} onChange={e=>setForm({...form, soi:e.target.value})} />
-                   <Input label="ถนน" name="road" val={form.road} onChange={e=>setForm({...form, road:e.target.value})} />
-                   <Input label="ตำบล/แขวง" name="subdistrict" val={form.subdistrict} onChange={e=>setForm({...form, subdistrict:e.target.value})} />
-                   <Input label="อำเภอ/เขต" name="district" val={form.district} onChange={e=>setForm({...form, district:e.target.value})} />
-                   <Input label="จังหวัด" name="province" val={form.province} onChange={e=>setForm({...form, province:e.target.value})} />
-                </div>
-                
-                <Input label="เบอร์โทรบ้าน" name="phoneHome" val={form.phoneHome} onChange={e=>setForm({...form, phoneHome:e.target.value})} />
-                <Input label="เบอร์มือถือ" name="phoneMobile" val={form.phoneMobile} onChange={e=>setForm({...form, phoneMobile:e.target.value})} />
-                <div className="col-span-2"><Input label="สถานที่ใกล้เคียง" name="nearHome" val={form.nearHome} onChange={e=>setForm({...form, nearHome:e.target.value})} /></div>
-
-                {/* Emergency Contact */}
-                <h4 className="col-span-2 font-bold text-gray-600 border-b pb-2 mt-4">บุคคลติดต่อฉุกเฉิน</h4>
-                <Input label="ชื่อผู้ติดต่อ" name="contactName" val={form.contactName} onChange={e=>setForm({...form, contactName:e.target.value})} />
-                <Input label="นามสกุล" name="contactSurname" val={form.contactSurname} onChange={e=>setForm({...form, contactSurname:e.target.value})} />
-                <Input label="เบอร์ผู้ติดต่อ" name="contactPhone" val={form.contactPhone} onChange={e=>setForm({...form, contactPhone:e.target.value})} />
-                <Input label="ความสัมพันธ์" name="contactRel" val={form.contactRel} onChange={e=>setForm({...form, contactRel:e.target.value})} />
-
-                {/* Dates & Work Shift */}
-                <div className={`col-span-2 grid gap-4 bg-yellow-50/50 p-4 rounded-xl border border-yellow-100 mt-4 ${form.contractType === 'probation_contract_page' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    <Input label="วันเริ่มงาน (วว/ดด/ปปปป)" name="startDate" type="text" placeholder="วว/ดด/ปปปป" val={form.startDate} onChange={e=>setForm({...form, startDate:e.target.value})} />
-                    
-                    {form.contractType === 'probation_contract_page' && (
-                        <Input label="วันครบกำหนดทดลองงาน (วว/ดด/ปปปป)" name="probationDate" type="text" placeholder="วว/ดด/ปปปป" val={form.probationDate} onChange={e=>setForm({...form, probationDate:e.target.value})} />
-                    )}
-                    
-                    <div className="col-span-2">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">กะเวลาทำงาน</label>
-                        <select name="workSet" value={form.workSet} onChange={e=>setForm({...form, workSet:e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-primary-gold outline-none">
-                            {Object.entries(WORK_SET_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        {/* Section 3: Witness */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-lg text-primary-navy mb-4 flex items-center gap-2"><PenTool size={18}/> กำหนดผู้รับรอง (Signers)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input label="พยาน 2 (Step 1)" name="witness2_name" val={form.witness2_name} onChange={e=>setForm({...form, witness2_name:e.target.value})} />
-                <Input label="Email พยาน 2" name="witness2_email" val={form.witness2_email} onChange={e=>setForm({...form, witness2_email:e.target.value})} />
-                <Input label="พยาน 1 (Step 2)" name="witness1_name" val={form.witness1_name} onChange={e=>setForm({...form, witness1_name:e.target.value})} />
-                <Input label="Email พยาน 1" name="witness1_email" val={form.witness1_email} onChange={e=>setForm({...form, witness1_email:e.target.value})} />
-                <Input label="ผู้บริหาร (Step 3)" name="signer1_name" val={form.signer1_name} onChange={e=>setForm({...form, signer1_name:e.target.value})} />
-                <Input label="Email ผู้บริหาร" name="signer1_email" val={form.signer1_email} onChange={e=>setForm({...form, signer1_email:e.target.value})} />
-            </div>
-        </div>
-
-        <div className="flex justify-end gap-4 pt-4 border-t border-gray-100">
-           <button type="button" onClick={onCancel} className="px-8 py-3 border border-gray-300 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-all">ยกเลิก</button>
-           <button type="submit" className="px-8 py-3 bg-primary-navy text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2"><Save size={18}/> บันทึกและส่งเมล</button>
-        </div>
-
-        {isSubmitting && <LoadingOverlay message="กำลังสร้างสัญญาและส่งอีเมล..." />}
-
-      </form>
-    </div>
-  );
-};
-
-const Input = ({ label, name, val, onChange, type="text", required=false, placeholder="" }) => (
-  <div>
-    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
-    <input type={type} name={name} value={val} onChange={onChange} required={required} placeholder={placeholder} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-gold focus:border-primary-gold outline-none transition-all" />
-  </div>
-);
-
 // --- SIGNING PAGE ---
 const SignPage = ({ docId, onBack, isAdmin }) => {
   const [isSaving, setIsSaving] = useState(false);
@@ -1314,7 +1084,6 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
   const [signing, setSigning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   
-  // ตรวจสอบ Step จาก URL (Backend ต้องส่งมา)
   const params = new URLSearchParams(window.location.search);
   const linkStep = params.get('step') ? parseInt(params.get('step')) : null;
 
@@ -1322,7 +1091,6 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
   const sigRef = useRef(null);
 
   const refreshContract = () => {
-      // ส่ง id ผ่าน query param
       fetch(`${API_URL}?action=getContractById&id=${docId}`) 
         .then(r=>r.json())
         .then(data => {
@@ -1350,6 +1118,7 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
       await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({ 
+                system: 'contract',
                 action: 'updateContract', 
                 id: contract.id, 
                 data: newData 
@@ -1397,9 +1166,9 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
     } catch(e) {
       alert("เกิดข้อผิดพลาดในการบันทึก");
     } finally {
-      setIsSaving(false); // <--- หยุดโหลด
+      setIsSaving(false); 
     }
-}; 
+  }; 
 
   if (isComplete) {
       return (
@@ -1421,21 +1190,11 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
 
   if(!contract) return <div className="flex h-screen items-center justify-center font-bold text-primary-navy">Loading Document...</div>;
   
-  // *** Logic ตรวจสอบสิทธิ์การเซ็น ***
-  // 1. ลิงก์ต้องไม่มี Step หรือ ถ้ามีต้องตรงกับปัจจุบัน (ป้องกันลิงก์เก่า)
   const isLinkValid = !linkStep || linkStep === contract.current_step;
-  
-  // 2. ถ้าเป็นขั้นตอนพนักงาน (4) ต้องเช็คสิทธิ์แก้ไขข้อมูล
   const isEmployeeStep = contract.current_step === 4 && contract.status !== 'Complete';
   const canEdit = isEmployeeStep && !alreadySignedStep && isLinkValid;
-
-  // 3. ปุ่มเซ็นจะแสดงเมื่อ: 
-  //    - สัญญายังไม่เสร็จ
-  //    - และ (Admin หรือ (ลิงก์ถูกต้อง และ ยังไม่ได้เซ็น))
   const showSignButton = contract.status !== 'Complete' && (isAdmin || (isLinkValid && !alreadySignedStep));
   
-  const isViewOnlyMode = alreadySignedStep || (linkStep && linkStep !== contract.current_step);
-
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <style>{`
@@ -1547,7 +1306,6 @@ const ContractDocument = ({ data, type, company, isEditable, onMapUpdate }) => {
     const contractTitle = CONTRACT_TYPES[type] || type;
     const isNDA = type === 'secret_contract_page';
 
-    // *** 1. สร้าง Component ลายเซ็นตามสไตล์ที่คุณชอบ ***
     const SigBlock = ({ img, name, align = "left" }) => (
         <div style={{ textAlign: align }}>
             <div style={{ marginTop: '5px' , fontSize: '12px'}}>
@@ -1575,7 +1333,6 @@ const ContractDocument = ({ data, type, company, isEditable, onMapUpdate }) => {
         </table>
     );
 
-    // *** 2. ปรับ EmployeeSignTable ให้ใช้ SigBlock ***
     const EmployeeSignTable = () => (
         <table className="header-table" style={{width:'100%', borderCollapse:'collapse', marginTop:'10px', paddingTop: '10px' ,marginBottom: '10px'}}>
             <tbody>
@@ -1594,11 +1351,10 @@ const ContractDocument = ({ data, type, company, isEditable, onMapUpdate }) => {
 
     const ContractFooterAddon = ({ isCopy }) => {
         const footerStyle = { 
-            marginTop: '-1px', // ดึงขึ้น 1px ให้เส้นทับกัน
+            marginTop: '-1px', 
             border: '1px solid #000', 
-            // borderTop: 'none', // ถ้าอยากให้ดูเชื่อมกันเป็นเนื้อเดียว ให้เปิด comment นี้ (แต่ปกติ -1px ก็เนียนแล้ว)
             paddingTop: '0px',
-            width: '100%' // มั่นใจว่ากว้างเต็ม
+            width: '100%' 
         };
         if (type === 'probation_contract_page') 
             return <div style={footerStyle}>
@@ -1627,7 +1383,6 @@ const ContractDocument = ({ data, type, company, isEditable, onMapUpdate }) => {
         </table>
     );
 
-    // *** 3. ปรับ SignatureSection (พยาน) ให้ใช้ SigBlock ***
     const SignatureSection = () => (
         <table style={{width:'90%', borderCollapse:'collapse', marginTop:'10px', marginLeft:'auto', marginRight:'auto'}}>
             <tbody>
@@ -1651,7 +1406,6 @@ const ContractDocument = ({ data, type, company, isEditable, onMapUpdate }) => {
         </table>
     );
 
-    // Page 1
     const Page1 = ({ isCopy }) => (
         <div className="contract-paper" style={{width:'210mm', minHeight:'297mm', padding:'6.35mm 12.7mm 1.27mm 12.7mm', background:'white', boxShadow:'0 8px 20px rgba(0,0,0,0.1)', marginBottom:'10px', position:'relative'}}>
             <Header isCopy={isCopy} />
@@ -1968,5 +1722,4 @@ const ContractDocument = ({ data, type, company, isEditable, onMapUpdate }) => {
             {(type === 'contract_page_1' || type === 'probation_contract_page') && <PageAddress />}
         </div>
     );
-  };
-}
+};
