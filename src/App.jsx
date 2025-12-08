@@ -7,7 +7,7 @@ import {
 import logoImage from './assets/division.png';
 
 // --- CONFIG ---
-const API_URL = 'https://script.google.com/macros/s/AKfycbx3eQl0nfPMqCAXobB9x6BKNQZlJE4GCfFiV9FZ_cPCgu5OYDqF1HucHGLs2kmOg2Tl/exec'; 
+const API_URL = 'https://script.google.com/macros/s/AKfycbwAL1ISDOIC_0TVh4RZniHn34vP0O7x5yBHlyxGZ1-u8ctgEg9OtG9dNMAZwxH7sNww/exec'; 
 
 // --- Constants ---
 const CONTRACT_TYPES = {
@@ -60,12 +60,29 @@ const LoadingOverlay = ({ message = "กำลังประมวลผล..."
          <div className="relative">
              <div className="w-16 h-16 border-4 border-gray-200 border-t-primary-navy rounded-full animate-spin"></div>
              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <img src="/CMT-HRM-ContractSystem/division.png" className="w-8 h-8 opacity-50" /> 
+                <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
              </div>
          </div>
          <p className="text-primary-navy font-bold mt-6 text-lg tracking-wide">{message}</p>
          <p className="text-gray-400 text-xs mt-1">กรุณารอสักครู่...</p>
      </div>
+  </div>
+);
+
+const Input = ({ label, name, val, onChange, type="text", required=false, placeholder="" }) => (
+  <div className="mb-4">
+    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <input 
+      type={type} 
+      name={name} 
+      value={val} 
+      onChange={onChange} 
+      required={required} 
+      placeholder={placeholder} 
+      className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-gold focus:border-primary-gold outline-none transition-all" 
+    />
   </div>
 );
 
@@ -249,12 +266,12 @@ const StepTracker = ({ currentStep, status }) => {
 };
 
 // --- Settings Page Component ---
-const SettingsPage = ({ onBack }) => {
-    const [config, setConfig] = useState({
-        signer1_name: "", signer1_email: "",
-        signer3_name: "", signer3_email: "",
-        signer4_name: "", signer4_email: ""
-    });
+    useEffect(() => {
+        fetch(`${API_URL}?action=getSettings`) // <--- แก้เป็น query param
+            .then(r => r.json())
+            .then(setConfig)
+            .catch(e => console.log("Default settings not found"));
+    }, []);
 
     useEffect(() => {
         fetch(`${API_URL}?action=getSettings`).then(r => r.json()).then(setConfig).catch(e => console.log("Default settings not found, using empty"));
@@ -265,8 +282,9 @@ const SettingsPage = ({ onBack }) => {
             await fetch(API_URL, {
                 method: 'POST',
                 body: JSON.stringify({
-                    action: 'saveSettings',
-                    config})
+                    action: 'saveSettings', // <--- ระบุ action
+                    config: config          // ส่ง config ไป
+                })
             });
             alert("บันทึกการตั้งค่าเรียบร้อย");
             onBack();
@@ -314,7 +332,7 @@ const SettingsPage = ({ onBack }) => {
             </div>
         </div>
     );
-}
+    
 
 // --- Main App ---
 export default function App() {
@@ -338,16 +356,18 @@ export default function App() {
     }
   }, []);
 
-  const loadContracts = async () => {
+ const loadContracts = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}?action=getContracts`);
       if (!res.ok) throw new Error("Err");
-      setContracts(await res.json());
-    } catch (e) { alert("เชื่อมต่อ Server ไม่ได้"); }
-    finally { setLoading(false); }
+      const data = await res.json();
+      setContracts(Array.isArray(data) ? data : []);
+    } catch (e) { 
+        alert("เชื่อมต่อ Server ไม่ได้"); 
+        console.error(e);
+    } finally { setLoading(false); }
   };
-
   useEffect(() => { if (view === 'dashboard') loadContracts(); }, [view]);
 
   const handleLogin = (u, p) => {
@@ -373,13 +393,13 @@ export default function App() {
             onRefresh={loadContracts}
             onDelete={async (id) => { 
                 if(confirm("ยืนยันการลบสัญญา?")) { 
-                    setGlobalLoading(true); // <--- เริ่มโหลดเต็มจอ
+                    setGlobalLoading(true);
                     await fetch(API_URL, { 
                         method: 'POST', 
-                        body: JSON.stringify({ action: 'deleteContract', id: id }) 
+                        body: JSON.stringify({ action: 'deleteContract', id: id })
                     }); 
-                    await loadContracts(); // โหลดข้อมูลใหม่
-                    setGlobalLoading(false); // <--- หยุดโหลด
+                    await loadContracts();
+                    setGlobalLoading(false);
                 }
             }}
             
@@ -404,7 +424,7 @@ const Navbar = ({ onLogout, onSettings, user }) => (
     <div className="w-full px-6 md:px-10 flex justify-between items-center h-16">
         <div className="flex items-center gap-3">
             <div className="bg-white/10 p-2 rounded-lg hover:bg-white/20 transition-colors cursor-pointer flex items-center justify-center">
-               <img src={logoImage} alt="Logo" className="w-6 h-6 object-contain" />
+               <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
             </div>
             <div>
                 <h1 className="font-bold text-xl leading-tight tracking-tight text-[#ffde91]">Contract System</h1>
@@ -439,7 +459,7 @@ const LoginView = ({ onLogin }) => {
   return (
     <div className="flex justify-center pt-20">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border text-center">
-        <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
+       <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
         <h2 className="text-2xl font-bold text-primary-navy mb-6">เข้าสู่ระบบ</h2>
         <input className="w-full p-3 border rounded-xl mb-4" value={u} onChange={e=>setU(e.target.value)} placeholder="Username (CMT)" />
         <input type="password" className="w-full p-3 border rounded-xl mb-6" value={p} onChange={e=>setP(e.target.value)} placeholder="Password (CMT)" />
@@ -662,8 +682,12 @@ const EmployeeManager = ({ onBack }) => {
     ];
 
     useEffect(() => { fetchEmp(); }, []);
-    const fetchEmp = async () => { try { const res = await fetch(`${API_URL}?action=getEmployees`); if(res.ok) setEmployees(await res.json()); } catch(e){} };
-
+    const fetchEmp = async () => { 
+        try { 
+            const res = await fetch(`${API_URL}?action=getEmployees`); // <--- แก้ตรงนี้
+            if(res.ok) setEmployees(await res.json()); 
+        } catch(e){} 
+    };
     useEffect(() => {
         if (showImport) {
             const savedId = localStorage.getItem('cmt_last_sheet_id');
@@ -677,7 +701,7 @@ const EmployeeManager = ({ onBack }) => {
         if(!confirm(`ลบพนักงาน ID: ${id}?`)) return;
         await fetch(API_URL, { 
             method: 'POST',
-            body: JSON.stringify({ action: 'deleteEmployee', id: id })
+            body: JSON.stringify({ action: 'deleteEmployee', id: id }) // <--- ใส่ action
         });
         fetchEmp();
     };
@@ -685,7 +709,14 @@ const EmployeeManager = ({ onBack }) => {
     const handleBulkDelete = async () => {
         if(selectedIds.length === 0) return;
         if(!confirm(`ยืนยันการลบ ${selectedIds.length} รายการที่เลือก?`)) return;
-        for (const id of selectedIds) await fetch(`${API_URL}/employees/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        
+        // วนลูปส่งคำสั่งลบทีละคน
+        for (const id of selectedIds) {
+            await fetch(API_URL, { 
+                method: 'POST',
+                body: JSON.stringify({ action: 'deleteEmployee', id: id })
+            });
+        }
         setSelectedIds([]); fetchEmp();
     };
 
@@ -756,7 +787,10 @@ const EmployeeManager = ({ onBack }) => {
                 if(newEmp.empId && newEmp.name) {
                     await fetch(API_URL, {
                         method: 'POST',
-                        body: JSON.stringify({action: 'saveEmployee',newEmp})
+                        body: JSON.stringify({
+                            action: 'saveEmployee', // <--- ต้องมี action
+                            newEmp: newEmp          // ส่ง object พนักงานไป
+                        })
                     });
                     count++;
                 }
@@ -1004,7 +1038,9 @@ const CreateContract = ({ onCancel, onSuccess }) => {
   useEffect(() => { 
     fetch(`${API_URL}?action=getEmployees`)
         .then(r => r.json())
-        .then(setEmployees)
+        .then(data => {
+            if (Array.isArray(data)) setEmployees(data);
+        })
         .catch(e => console.error("Error loading employees:", e));
     fetch(`${API_URL}?action=getSettings`)
             .then(r => r.json())
@@ -1286,7 +1322,8 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
   const sigRef = useRef(null);
 
   const refreshContract = () => {
-      fetch(`${API_URL}?action=getContractById&id=${docId}`)
+      // ส่ง id ผ่าน query param
+      fetch(`${API_URL}?action=getContractById&id=${docId}`) 
         .then(r=>r.json())
         .then(data => {
             if(data.error) { alert("ไม่พบเอกสาร"); return; }
@@ -1334,8 +1371,8 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
     const status = step === 4 ? "Complete" : `Pending Signer ${nextStep}`;
 
     const payload = {
-        action: 'updateContract', // บอก GAS ว่าอัปเดต
-        id: contract.id,          // ส่ง ID ไปด้วย
+        action: 'updateContract',
+        id: contract.id,
         status: status,
         current_step: nextStep,
         data: newData
