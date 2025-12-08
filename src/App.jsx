@@ -277,7 +277,7 @@ const SettingsPage = ({ onBack }) => {
     });
 
     useEffect(() => {
-        fetch(`${API_URL}?action=getSettings`)
+        fetch(`${API_URL}?system=contract&action=getSettings`)
             .then(r => r.json())
             .then(data => {
                if(data && !data.error) setConfig(data);
@@ -362,7 +362,7 @@ const CreateContract = ({ onCancel, onSuccess }) => {
 
   useEffect(() => { 
     // Load Employees
-    fetch(`${API_URL}?action=getEmployees`)
+    fetch(`${API_URL}?system=contract&action=getEmployees`)
         .then(r => r.json())
         .then(data => {
             if (Array.isArray(data)) setEmployees(data);
@@ -370,7 +370,7 @@ const CreateContract = ({ onCancel, onSuccess }) => {
         .catch(e => console.error("Error loading employees:", e));
 
     // Load Settings
-    fetch(`${API_URL}?action=getSettings`)
+    fetch(`${API_URL}?system=contract&action=getSettings`)
             .then(r => r.json())
             .then(settings => {
                 if(settings && !settings.error) {
@@ -643,7 +643,7 @@ const EmployeeManager = ({ onBack }) => {
     useEffect(() => { fetchEmp(); }, []);
     const fetchEmp = async () => { 
         try { 
-            const res = await fetch(`${API_URL}?action=getEmployees`); 
+            const res = await fetch(`${API_URL}?system=contract&action=getEmployees`); 
             if(res.ok) setEmployees(await res.json()); 
         } catch(e){} 
     };
@@ -853,7 +853,7 @@ export default function App() {
   const loadContracts = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}?action=getContracts`);
+      const res = await fetch(`${API_URL}?system=contract&action=getContracts`);
       if (!res.ok) throw new Error("Err");
       const data = await res.json();
       setContracts(Array.isArray(data) ? data : []);
@@ -1091,7 +1091,7 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
   const sigRef = useRef(null);
 
   const refreshContract = () => {
-      fetch(`${API_URL}?action=getContractById&id=${docId}`) 
+      fetch(`${API_URL}?system=contract&action=getContractById&id=${docId}`) 
         .then(r=>r.json())
         .then(data => {
             if(data.error) { alert("ไม่พบเอกสาร"); return; }
