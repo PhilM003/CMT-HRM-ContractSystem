@@ -370,6 +370,7 @@ const StepTracker = ({ currentStep, status }) => {
 
 // --- Settings Page Component ---
 const SettingsPage = ({ onBack }) => {
+    const [isLoading, setIsLoading] = useState(false);
     const [config, setConfig] = useState({
         signer1_name: "", signer1_email: "",
         signer3_name: "", signer3_email: "",
@@ -377,15 +378,18 @@ const SettingsPage = ({ onBack }) => {
     });
 
     useEffect(() => {
+        setIsLoading(true);
         fetch(`${API_URL}?system=contract&action=getSettings`)
             .then(r => r.json())
             .then(data => {
                if(data && !data.error) setConfig(data);
             })
-            .catch(e => console.log("Default settings not found"));
+            .catch(e => console.log("Default settings not found"))
+            .finally(() => setIsLoading(false));
     }, []);
 
     const handleSave = async () => {
+        setIsLoading(true);
         try {
             await fetch(API_URL, {
                 method: 'POST',
@@ -397,11 +401,17 @@ const SettingsPage = ({ onBack }) => {
             });
             alert("บันทึกการตั้งค่าเรียบร้อย");
             onBack();
-        } catch(e) { alert("Error saving settings"); }
+        } catch(e) { 
+            alert("Error saving settings"); 
+        } finally { 
+            // 5. ตั้งค่า isLoading เป็น false เมื่อบันทึกเสร็จสิ้น
+            setIsLoading(false); 
+        }
     };
 
     return (
         <div className="animate-fade-in-up">
+            {isLoading && <LoadingOverlay message="กำลังดึง/บันทึกการตั้งค่า..." />}
             <div className="flex items-center gap-4 mb-8">
                 <button onClick={onBack} className="p-2 hover:bg-gray-200 rounded-full"><ArrowLeft/></button>
                 <h1 className="text-2xl font-bold text-primary-navy">ตั้งค่าระบบ (Settings)</h1>
@@ -432,8 +442,17 @@ const SettingsPage = ({ onBack }) => {
                     </div>
                 </div>
                 <div className="mt-8 text-right">
-                    <button onClick={handleSave} className="bg-primary-navy text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-900 transition-all shadow-lg flex items-center gap-2 ml-auto">
-                        <Save size={18}/> บันทึกการตั้งค่า
+                    <button 
+                        onClick={handleSave} 
+                        // 7. ป้องกันการกดซ้ำขณะกำลังโหลด และแสดงสถานะบนปุ่ม
+                        disabled={isLoading}
+                        className={`px-6 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 ml-auto 
+                           ${isLoading 
+                               ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                               : 'bg-primary-navy text-white hover:bg-blue-900'}`}
+                    >
+                        {isLoading ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>} 
+                        {isLoading ? " กำลังบันทึก..." : " บันทึกการตั้งค่า"}
                     </button>
                 </div>
             </div>
@@ -1370,30 +1389,48 @@ const SignPage = ({ docId, onBack, isAdmin }) => {
          </div>
       </div>
       
-      {signing && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-           <div className="bg-white p-6 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col">
-              <div className="flex justify-between items-center mb-6 border-b pb-4">
-                  <div>
-                      <h3 className="font-bold text-xl text-primary-navy">ลงลายมือชื่อ</h3>
-                      <p className="text-sm text-gray-500">สำหรับขั้นตอนที่ {contract.current_step}</p>
-                  </div>
-                  <button onClick={()=>setSigning(false)} className="p-2 hover:bg-gray-100 rounded-full"><X/></button>
-              </div>
-              <div className="border-2 border-dashed border-gray-300 bg-gray-50 mb-6 flex justify-center rounded-2xl relative overflow-hidden">
-                 <SignatureCanvas ref={sigRef} />
-                 <div className="absolute bottom-2 text-xs text-gray-400 pointer-events-none">เซ็นชื่อในกรอบนี้</div>
-              </div>
-              <div className="flex justify-between items-center">
-                 <button onClick={()=>{const ctx=sigRef.current.getContext('2d'); ctx.clearRect(0,0,320,160);}} className="text-sm text-gray-500 hover:text-red-500 flex items-center gap-1"><RotateCw size={14}/> ล้างลายเซ็น</button>
-                 <div className="flex gap-3">
-                    <button onClick={()=>setSigning(false)} className="px-5 py-2 border rounded-xl font-bold text-gray-600 hover:bg-gray-50">ยกเลิก</button>
-                    <button onClick={saveSignature} className="px-6 py-2 bg-primary-navy text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">ยืนยัน</button>
-                 </div>
-              </div>
-           </div>
-        </div>
-      )}
+        {signing && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                <div className="bg-white p-6 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col">
+                    <div className="flex justify-between items-center mb-6 border-b pb-4">
+                        <div>
+                            <h3 className="font-bold text-xl text-primary-navy">ลงลายมือชื่อ</h3>
+                            <p className="text-sm text-gray-500">สำหรับขั้นตอนที่ {contract.current_step}</p>
+                        </div>
+                        <button onClick={()=>setSigning(false)} className="p-2 hover:bg-gray-100 rounded-full"><X/></button>
+                    </div>
+                    <div className="border-2 border-dashed border-gray-300 bg-gray-50 mb-6 flex justify-center rounded-2xl relative overflow-hidden">
+                        <SignatureCanvas ref={sigRef} />
+                        <div className="absolute bottom-2 text-xs text-gray-400 pointer-events-none">เซ็นชื่อในกรอบนี้</div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <button onClick={()=>{const ctx=sigRef.current.getContext('2d'); ctx.clearRect(0,0,320,160);}} className="text-sm text-gray-500 hover:text-red-500 flex items-center gap-1"><RotateCw size={14}/> ล้างลายเซ็น</button>
+                        <div className="flex gap-3">
+                            <button onClick={()=>setSigning(false)} 
+                                    // เพิ่ม disabled เมื่อกำลังบันทึก
+                                    disabled={isSaving} 
+                                    className="px-5 py-2 border rounded-xl font-bold text-gray-600 hover:bg-gray-50">ยกเลิก</button>
+                            {/* *** ส่วนที่แก้ไข: ปุ่มยืนยัน (Confirm Button) *** */}
+                            <button 
+                                onClick={saveSignature} 
+                                // เพิ่ม disabled และปรับสีปุ่มเมื่อกำลังบันทึก
+                                disabled={isSaving}
+                                className={`px-6 py-2 rounded-xl font-bold shadow-lg transition-all flex items-center gap-2 
+                                ${isSaving 
+                                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                                    : 'bg-primary-navy text-white hover:shadow-xl hover:-translate-y-0.5'}`}
+                            >
+                            {isSaving 
+                                ? <Loader2 className="animate-spin" size={18}/> 
+                                : <Save size={18}/>}
+                            {isSaving ? " กำลังบันทึก..." : "ยืนยัน"}
+                            </button>
+                            {/* ******************************************* */}
+                        </div>
+                    </div>
+                </div>
+                </div>
+            )}
     </div>
   );
 };
