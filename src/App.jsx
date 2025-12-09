@@ -58,16 +58,16 @@ const THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "�
 // --- COMPONENTS ---
 
 const LoadingOverlay = ({ message = "กำลังประมวลผล..." }) => (
-  <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center backdrop-blur-sm animate-fade-in">
+  <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center backdrop-blur-sm animate-fade-in">
      <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center border border-gray-100 transform scale-110 transition-all">
          <div className="relative">
              <div className="w-16 h-16 border-4 border-gray-200 border-t-primary-navy rounded-full animate-spin"></div>
              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <img src={logoImage} alt="Loading" className="mx-auto mb-4 h-20 w-auto" />
+                <img src={logoImage} alt="Loading" className="mx-auto h-8 w-auto opacity-50" />
              </div>
          </div>
          <p className="text-primary-navy font-bold mt-6 text-lg tracking-wide">{message}</p>
-         <p className="text-gray-400 text-xs mt-1">กรุณารอสักครู่...</p>
+         <p className="text-gray-400 text-xs mt-1 animate-pulse">กรุณารอสักครู่...</p>
      </div>
   </div>
 );
@@ -630,7 +630,8 @@ const EmployeeManager = ({ onBack }) => {
     const [sheetHeaders, setSheetHeaders] = useState([]); 
     const [step, setStep] = useState(1); 
     const [showRawPreview, setShowRawPreview] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false); // Used for import process
+    const [isLoading, setIsLoading] = useState(false); // Used for general fetching
     const [mapping, setMapping] = useState({});
 
     const FIELD_GROUPS = [
@@ -641,39 +642,48 @@ const EmployeeManager = ({ onBack }) => {
     ];
 
     useEffect(() => { fetchEmp(); }, []);
+    
     const fetchEmp = async () => { 
+        setIsLoading(true);
         try { 
             const res = await fetch(`${API_URL}?system=contract&action=getEmployees`); 
             if(res.ok) setEmployees(await res.json()); 
         } catch(e){} 
+        finally { setIsLoading(false); }
     };
 
     const handleDelete = async (id) => {
         if(!confirm(`ลบพนักงาน ID: ${id}?`)) return;
-        await fetch(API_URL, { 
-            method: 'POST',
-            body: JSON.stringify({ 
-                system: 'contract',
-                action: 'deleteEmployee', 
-                id: id })
-        });
-        fetchEmp();
+        setIsLoading(true);
+        try {
+            await fetch(API_URL, { 
+                method: 'POST',
+                body: JSON.stringify({ 
+                    system: 'contract',
+                    action: 'deleteEmployee', 
+                    id: id })
+            });
+            await fetchEmp();
+        } finally { setIsLoading(false); }
     };
 
     const handleBulkDelete = async () => {
         if(selectedIds.length === 0) return;
         if(!confirm(`ยืนยันการลบ ${selectedIds.length} รายการที่เลือก?`)) return;
+        setIsLoading(true);
         
-        for (const id of selectedIds) {
-            await fetch(API_URL, { 
-                method: 'POST',
-                body: JSON.stringify({ 
-                    system: 'contract',
-                    action: 'deleteEmployee',
-                    id: id })
-            });
-        }
-        setSelectedIds([]); fetchEmp();
+        try {
+            for (const id of selectedIds) {
+                await fetch(API_URL, { 
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        system: 'contract',
+                        action: 'deleteEmployee',
+                        id: id })
+                });
+            }
+            setSelectedIds([]); await fetchEmp();
+        } finally { setIsLoading(false); }
     };
 
     const handleFetchSheet = async () => {
@@ -738,7 +748,8 @@ const EmployeeManager = ({ onBack }) => {
                 }
             }
             alert(`นำเข้าข้อมูลสำเร็จ ${count} รายการ`);
-            setShowImport(false); setSheetData([]); setStep(1); fetchEmp();
+            setShowImport(false); setSheetData([]); setStep(1); 
+            await fetchEmp();
         } catch(e) { alert("Error: " + e.message); } finally { setLoading(false); }
     };
 
@@ -748,6 +759,7 @@ const EmployeeManager = ({ onBack }) => {
 
     return (
         <div className="animate-fade-in-up relative">
+            {isLoading && <LoadingOverlay message="กำลังโหลดข้อมูลพนักงาน..." />}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><ArrowLeft size={24} className="text-gray-600"/></button>
@@ -794,6 +806,7 @@ const EmployeeManager = ({ onBack }) => {
             {/* IMPORT MODAL */}
             {showImport && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    {loading && <LoadingOverlay message="กำลังเชื่อมต่อ Google Sheet..." />}
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
                         <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
                             <h3 className="font-bold text-lg text-primary-navy flex items-center gap-2"><span className="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">{step}</span>นำเข้าข้อมูล Google Sheet</h3>
@@ -907,18 +920,18 @@ export default function App() {
         {view === 'sign' && <SignPage docId={activeDocId} onBack={() => { window.history.pushState({}, '', '/'); setView(user ? 'dashboard' : 'login'); }} isAdmin={!!user} />}
       </div>
 
-      {globalLoading && <LoadingOverlay message="กำลังลบข้อมูล..." />}
+      {globalLoading && <LoadingOverlay message="กำลังประมวลผล..." />}
     </div>
   );
 }
 
 // --- Sub Components ---
 const Navbar = ({ onLogout, onSettings, user }) => (
-<nav className="bg-primary-navy text-white shadow-md sticky top-0 z-50 w-full">
+<nav className="bg-primary-navy text-white px-6 py-3 flex justify-between items-center shadow-md sticky top-0 z-50">
     <div className="w-full px-6 md:px-10 flex justify-between items-center h-16">
         <div className="flex items-center gap-3">
-            <div className="bg-white/10 p-2 rounded-lg hover:bg-white/20 transition-colors cursor-pointer flex items-center justify-center">
-               <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
+            <div className="bg-white/10 p-2 rounded-lg flex items-center justify-center">
+               <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-10 w-10" />
             </div>
             <div>
                 <h1 className="font-bold text-xl leading-tight tracking-tight text-[#ffde91]">Contract System</h1>
@@ -947,7 +960,7 @@ const LoginView = ({ onLogin }) => {
   return (
     <div className="flex justify-center pt-20">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border text-center">
-       <img src={logoImage} alt="Company Logo" className="mx-auto mb-4 h-20 w-auto" />
+       <img src={logoImage} alt="Company Logo" className="mx-auto h-20 w-auto" />
         <h2 className="text-2xl font-bold text-primary-navy mb-6">เข้าสู่ระบบ</h2>
         <input className="w-full p-3 border rounded-xl mb-4" value={u} onChange={e=>setU(e.target.value)} placeholder="Username (CMT)" />
         <input type="password" className="w-full p-3 border rounded-xl mb-6" value={p} onChange={e=>setP(e.target.value)} placeholder="Password (CMT)" />
@@ -958,13 +971,15 @@ const LoginView = ({ onLogin }) => {
 };
 
 const Dashboard = ({ contracts, loading, onCreate, onManageEmployees, onRefresh, onDelete, onOpenSign }) => {
+  const safeContracts = Array.isArray(contracts) ? contracts : [];
   const total = contracts.length;
   const step1_2 = contracts.filter(c => (c.current_step === 1 || c.current_step === 2) && c.status !== 'Complete').length;
   const step3 = contracts.filter(c => c.current_step === 3 && c.status !== 'Complete').length;
   const completed = contracts.filter(c => c.status === 'Complete').length;
 
   return (
-    <div className="animate-fade-in-up">
+    <div className="animate-fade-in-up relative">
+      {loading && <LoadingOverlay message="กำลังโหลดข้อมูลสัญญา..." />}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
         <div className="flex items-center gap-4">
            <div className="bg-yellow-100 p-4 rounded-2xl shadow-sm border border-yellow-200/50"><FileText size={40} className="text-yellow-600 drop-shadow-sm" /></div>
