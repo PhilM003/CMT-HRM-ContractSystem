@@ -89,6 +89,106 @@ const Input = ({ label, name, val, onChange, type="text", required=false, placeh
   </div>
 );
 
+const SettingsModal = ({ onClose, currentSettings, onSave, setGlobalLoading }) => {
+  const [formData, setFormData] = useState({
+    sender_name: currentSettings.sender_name || 'HR System', // Default Name
+    sender_email: currentSettings.sender_email || '',        // Reply-To Email
+    email_hr: currentSettings.email_hr || '',
+    email_approver: currentSettings.email_approver || ''
+  });
+
+  const handleSave = async () => {
+    setGlobalLoading(true);
+    try {
+      await apiCall({
+        action: 'saveSettings',
+        settings: formData
+      });
+      alert('✅ บันทึกการตั้งค่าเรียบร้อย');
+      onSave(formData);
+    } catch (e) {
+      alert('❌ บันทึกไม่สำเร็จ');
+    } finally {
+      setGlobalLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-neutral-dark/60 flex items-center justify-center backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-secondary-silver/50">
+        <div className="p-5 border-b border-secondary-silver bg-white flex justify-between items-center">
+           <h3 className="font-bold text-xl text-primary-navy flex items-center gap-2">
+             <Settings className="text-primary-gold" size={24}/> ตั้งค่าระบบ (Settings)
+           </h3>
+           <button onClick={onClose}><X size={24} className="text-secondary-silver hover:text-red-500"/></button>
+        </div>
+        
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+           {/* --- ส่วนตั้งค่าผู้ส่ง (Sender Config) --- */}
+           <div className="bg-secondary-cream/30 p-4 rounded-xl border border-secondary-silver/50 space-y-4">
+               <h4 className="text-sm font-bold text-primary-navy border-b border-secondary-silver/30 pb-2 mb-2">ข้อมูลผู้ส่ง (Sender Info)</h4>
+               <div>
+                  <label className="block text-xs font-bold text-neutral-medium mb-1">ชื่อผู้ส่งที่แสดง (Display Name)</label>
+                  <input 
+                    type="text" 
+                    value={formData.sender_name} 
+                    onChange={e => setFormData({...formData, sender_name: e.target.value})}
+                    className="w-full border border-secondary-silver rounded-lg p-2 text-sm focus:border-primary-gold outline-none"
+                    placeholder="เช่น HR Department"
+                  />
+               </div>
+               <div>
+                  <label className="block text-xs font-bold text-neutral-medium mb-1">อีเมลสำหรับตอบกลับ (Reply-To Email)</label>
+                  <input 
+                    type="email" 
+                    value={formData.sender_email} 
+                    onChange={e => setFormData({...formData, sender_email: e.target.value})}
+                    className="w-full border border-secondary-silver rounded-lg p-2 text-sm focus:border-primary-gold outline-none"
+                    placeholder="hr-admin@company.com"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">*อีเมลผู้ส่งจริงจะเป็นบัญชี Google ที่รัน Script แตชื่อที่แสดงจะเป็นตามที่กำหนด</p>
+               </div>
+           </div>
+
+           {/* --- ส่วนตั้งค่าผู้รับ (Receiver Config) --- */}
+           <div className="space-y-4">
+               <h4 className="text-sm font-bold text-primary-navy border-b border-secondary-silver/30 pb-2 mb-2">อีเมลผู้รับแจ้งเตือน (Notifications)</h4>
+               <div>
+                  <label className="block text-sm font-bold text-primary-navy mb-2 flex items-center gap-2">
+                    <Mail size={16}/> อีเมลฝ่ายบุคคล (HR Email)
+                  </label>
+                  <input 
+                    type="email" 
+                    value={formData.email_hr} 
+                    onChange={e => setFormData({...formData, email_hr: e.target.value})}
+                    className="w-full border-2 border-secondary-silver/50 rounded-xl p-3 focus:border-primary-gold outline-none"
+                    placeholder="hr@example.com"
+                  />
+               </div>
+               <div>
+                  <label className="block text-sm font-bold text-primary-navy mb-2 flex items-center gap-2">
+                    <Mail size={16}/> อีเมลผู้อนุมัติ/CEO (Approver Email)
+                  </label>
+                  <input 
+                    type="email" 
+                    value={formData.email_approver} 
+                    onChange={e => setFormData({...formData, email_approver: e.target.value})}
+                    className="w-full border-2 border-secondary-silver/50 rounded-xl p-3 focus:border-primary-gold outline-none"
+                    placeholder="ceo@example.com"
+                  />
+               </div>
+           </div>
+        </div>
+
+        <div className="p-5 border-t border-secondary-silver bg-gray-50 flex justify-end gap-3">
+           <button onClick={onClose} className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-200 rounded-lg">ยกเลิก</button>
+           <button onClick={handleSave} className="px-6 py-2 bg-primary-navy text-white font-bold rounded-lg hover:bg-accent-royalblue shadow-lg">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Helper Functions ---
 const bahtText = (num) => {
     if (!num) return "";
@@ -350,6 +450,7 @@ const CreateContract = ({ onCancel, onSuccess }) => {
     witness1_name: 'พยานคนที่ 1', witness1_email: '', witness2_name: 'พยานคนที่ 2', witness2_email: '',
     signer1_name: 'ดร.กฤษณา สุขบุญญสถิตย์', signer1_email: '', 
     startDate: '', probationDate: '', comment: '',
+    email: '',
     age: '', personalId: '', issueDate: '', addressFull: '',
     houseNo: '', moo: '', soi: '', road: '', subdistrict: '', district: '', province: '',
     phoneHome: '', phoneMobile: '', nearHome: '',
@@ -408,6 +509,7 @@ const CreateContract = ({ onCancel, onSuccess }) => {
           sub_dept: emp.sub_dept || "", 
           project: emp.project || "",
           salary: prev.salary, 
+          email: emp.email || "",
           age: emp.age || "",
           personalId: emp.personalId || "",
           issueDate: emp.issueDate || "",
@@ -487,7 +589,7 @@ const CreateContract = ({ onCancel, onSuccess }) => {
       action: 'createContract',
       contract_type: form.contractType, company_name: form.company, status: 'Pending Signer 1', current_step: 1, data: contractData,
       signer1_name: form.signer1_name, signer1_email: form.signer1_email,
-      signer2_name: `${form.name} ${form.surname}`, signer2_email: "carpetmaker05@gmail.com", 
+      signer2_name: `${form.name} ${form.surname}`, signer2_email: form.email || "carpetmaker05@gmail.com", 
       signer3_name: form.witness1_name, signer3_email: form.witness1_email,
       signer4_name: form.witness2_name, signer4_email: form.witness2_email,
       sig1: null, sig2: null, sig3: null, sig4: null
@@ -552,6 +654,7 @@ const CreateContract = ({ onCancel, onSuccess }) => {
                 <Input label="นามสกุล" name="surname" val={form.surname} onChange={e=>setForm({...form, surname:e.target.value})} required />
                 <Input label="รหัสพนักงาน" name="empId" val={form.empId} onChange={e=>setForm({...form, empId:e.target.value})} required />
                 <Input label="ตำแหน่ง" name="position" val={form.position} onChange={e=>setForm({...form, position:e.target.value})} required />
+                <Input label="อีเมลพนักงาน" name="email" val={form.email} onChange={e=>setForm({...form, email:e.target.value})} required />
                 <Input label="แผนก" name="department" val={form.department} onChange={e=>setForm({...form, department:e.target.value})} />
                 <Input label="ฝ่าย (Sub-dept)" name="sub_dept" val={form.sub_dept} onChange={e=>setForm({...form, sub_dept:e.target.value})} />
                 <Input label="เงินเดือน (บาท)" name="salary" type="number" val={form.salary} onChange={e=>setForm({...form, salary:e.target.value})} required />
@@ -636,7 +739,7 @@ const EmployeeManager = ({ onBack }) => {
 
     const FIELD_GROUPS = [
         { title: "ข้อมูลงาน (Work Info)", fields: [{ k: 'empId', label: 'รหัสพนักงาน *' }, { k: 'name', label: 'ชื่อจริง *' }, { k: 'surname', label: 'นามสกุล' }, { k: 'position', label: 'ตำแหน่ง' }, { k: 'department', label: 'แผนก' }, { k: 'sub_dept', label: 'ฝ่าย (Sub-Dept)' }, { k: 'project', label: 'โครงการ (Project)' }, { k: 'salary', label: 'เงินเดือน' }, { k: 'workSet', label: 'กะงาน (A, B, C, D)' }, { k: 'startDate', label: 'วันเริ่มงาน (วว/ดด/ปปปป)' }, { k: 'probationDate', label: 'วันผ่านโปร (วว/ดด/ปปปป)' }] },
-        { title: "ข้อมูลส่วนตัว (Personal)", fields: [{ k: 'age', label: 'อายุ' }, { k: 'personalId', label: 'เลขบัตรประชาชน' }, { k: 'issueDate', label: 'วันที่ออกบัตร' }, { k: 'phoneMobile', label: 'เบอร์มือถือ' }, { k: 'phoneHome', label: 'เบอร์บ้าน' }] },
+        { title: "ข้อมูลส่วนตัว (Personal)", fields: [{ k: 'age', label: 'อายุ' }, { k: 'personalId', label: 'เลขบัตรประชาชน' }, { k: 'issueDate', label: 'วันที่ออกบัตร' }, { k: 'phoneMobile', label: 'เบอร์มือถือ' }, { k: 'phoneHome', label: 'เบอร์บ้าน' }, { k: 'email', label: 'อีเมลพนักงาน *' }] },
         { title: "ที่อยู่ (Address)", fields: [{ k: 'addressFull', label: 'ที่อยู่ตามทะเบียนบ้าน (เต็ม)' }, { k: 'houseNo', label: 'บ้านเลขที่' }, { k: 'moo', label: 'หมู่' }, { k: 'soi', label: 'ซอย' }, { k: 'road', label: 'ถนน' }, { k: 'subdistrict', label: 'ตำบล/แขวง' }, { k: 'district', label: 'อำเภอ/เขต' }, { k: 'province', label: 'จังหวัด' }, { k: 'nearHome', label: 'สถานที่ใกล้เคียง' }] },
         { title: "ผู้ติดต่อฉุกเฉิน (Emergency Contact)", fields: [{ k: 'contactName', label: 'ชื่อผู้ติดต่อ' }, { k: 'contactSurname', label: 'นามสกุลผู้ติดต่อ' }, { k: 'contactPhone', label: 'เบอร์โทรผู้ติดต่อ' }, { k: 'contactRel', label: 'ความสัมพันธ์' }] }
     ];
@@ -721,7 +824,7 @@ const EmployeeManager = ({ onBack }) => {
     };
 
     const handleImportSubmit = async () => {
-        if(!mapping.empId || !mapping.name) return alert("กรุณาจับคู่ 'รหัสพนักงาน' และ 'ชื่อจริง'");
+        if(!mapping.empId || !mapping.name || !mapping.email) return alert("กรุณาจับคู่ 'รหัสพนักงาน', 'ชื่อจริง' และ 'อีเมลพนักงาน' ให้ครบถ้วน");
         localStorage.setItem('cmt_last_mapping', JSON.stringify(mapping));
         setLoading(true);
         try {
@@ -736,7 +839,7 @@ const EmployeeManager = ({ onBack }) => {
                         newEmp[field.k] = val ? val.trim() : "";
                     });
                 });
-                if(newEmp.empId && newEmp.name) {
+                if(newEmp.empId && newEmp.name && newEmp.email) {
                     await fetch(API_URL, {
                         method: 'POST',
                         body: JSON.stringify({
