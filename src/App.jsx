@@ -47,8 +47,8 @@ const WORK_SETS_FULL = {
 };
 
 const COMPANIES = [
-  "บริษัท คาร์เปท เมกเกอร์<br>(ประเทศไทย) จำกัด",
-  "บริษัท คาร์เปท เมกเกอร์ พี2ดับบลิว<br>(ประเทศไทย) จำกัด",
+  "บริษัท คาร์เปท เมกเกอร์ (ประเทศไทย) จำกัด",
+  "บริษัท คาร์เปท เมกเกอร์ พี2ดับบลิว (ประเทศไทย) จำกัด",
   "บริษัท ไอเค รีเสิร์จ จำกัด",
   "บริษัท อินเตอร์ ไกร จำกัด"
 ];
@@ -372,6 +372,8 @@ const StepTracker = ({ currentStep, status }) => {
 const SettingsPage = ({ onBack }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [config, setConfig] = useState({
+        sender_name: "HR System",
+        sender_email: "",
         signer1_name: "", signer1_email: "",
         signer3_name: "", signer3_email: "",
         signer4_name: "", signer4_email: ""
@@ -382,7 +384,7 @@ const SettingsPage = ({ onBack }) => {
         fetch(`${API_URL}?system=contract&action=getSettings`)
             .then(r => r.json())
             .then(data => {
-               if(data && !data.error) setConfig(data);
+               if(data && !data.error) setConfig(prev => ({...prev, ...data}));
             })
             .catch(e => console.log("Default settings not found"))
             .finally(() => setIsLoading(false));
@@ -416,7 +418,29 @@ const SettingsPage = ({ onBack }) => {
                 <button onClick={onBack} className="p-2 hover:bg-gray-200 rounded-full"><ArrowLeft/></button>
                 <h1 className="text-2xl font-bold text-primary-navy">ตั้งค่าระบบ (Settings)</h1>
             </div>
-            <div className="bg-white p-8 rounded-2xl shadow-lg max-w-2xl border border-gray-200">
+                <div className="bg-white p-8 rounded-2xl shadow-lg max-w-2xl border border-gray-200">
+                    <div className="mb-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <h3 className="font-bold text-lg text-primary-navy mb-4 flex items-center gap-2">
+                        <Mail size={20}/> ข้อมูลผู้ส่งอีเมล (Sender Info)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input 
+                            label="ชื่อผู้ส่งที่แสดง (Display Name)" 
+                            val={config.sender_name} 
+                            onChange={e=>setConfig({...config, sender_name:e.target.value})} 
+                            placeholder="เช่น HR Department"
+                        />
+                        <Input 
+                            label="อีเมลสำหรับตอบกลับ (Reply-To)" 
+                            val={config.sender_email} 
+                            onChange={e=>setConfig({...config, sender_email:e.target.value})} 
+                            placeholder="hr@company.com"
+                        />
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-2">
+                        * หมายเหตุ: อีเมลขาออกจริงจะเป็นบัญชี Google ที่รัน Script แต่ผู้รับจะเห็นชื่อผู้ส่งตามที่ระบุในช่องนี้
+                    </p>
+                </div>
                 <h3 className="font-bold text-lg mb-6 flex items-center gap-2"><Mail size={20}/> กำหนดอีเมลผู้รับรองเริ่มต้น</h3>
                 <div className="space-y-6">
                     <div className="p-4 bg-gray-50 rounded-xl border">
