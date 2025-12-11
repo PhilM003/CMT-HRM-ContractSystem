@@ -418,8 +418,8 @@ const SettingsPage = ({ onBack }) => {
                 <button onClick={onBack} className="p-2 hover:bg-gray-200 rounded-full"><ArrowLeft/></button>
                 <h1 className="text-2xl font-bold text-primary-navy">ตั้งค่าระบบ (Settings)</h1>
             </div>
-                <div className="bg-white p-8 rounded-2xl shadow-lg max-w-2xl border border-gray-200">
-                    <div className="mb-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <div className="bg-white p-8 rounded-2xl shadow-lg max-w-2xl border border-gray-200">
+                <div className="mb-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
                     <h3 className="font-bold text-lg text-primary-navy mb-4 flex items-center gap-2">
                         <Mail size={20}/> ข้อมูลผู้ส่งอีเมล (Sender Info)
                     </h3>
@@ -603,7 +603,7 @@ const CreateContract = ({ onCancel, onSuccess }) => {
         Surname: form.surname, 
         Position: form.position,
         Salary: parseInt(form.salary).toLocaleString(), 
-        Thai_salary: bahtText(form.salary),
+        Thai_salary: " - " + bahtText(form.salary) + " - ",
         Department: form.department, 
         Subdepartment: form.sub_dept, 
         project: form.project,
